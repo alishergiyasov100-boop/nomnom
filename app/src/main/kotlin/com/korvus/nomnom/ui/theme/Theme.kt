@@ -1,7 +1,6 @@
 package com.korvus.nomnom.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -88,7 +87,7 @@ private val DarkScheme = darkColorScheme(
 
 @Composable
 fun NomNomTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,   // принудительно light — фон всегда белый
     content: @Composable () -> Unit,
 ) {
     val scheme = if (darkTheme) DarkScheme else LightScheme
@@ -96,9 +95,11 @@ fun NomNomTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = scheme.background.toArgb()
+            // hero сверху фиолетовый → statusbar тоже фиолетовый
+            window.statusBarColor = VioletPrimary.toArgb()
             window.navigationBarColor = scheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = true
         }
     }
     MaterialTheme(colorScheme = scheme, content = content)

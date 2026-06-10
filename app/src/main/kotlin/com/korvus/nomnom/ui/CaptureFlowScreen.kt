@@ -7,6 +7,13 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -182,7 +189,15 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
-        when (val s = state) {
+        AnimatedContent(
+            targetState = state,
+            transitionSpec = {
+                (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 10 })
+                    .togetherWith(fadeOut(tween(160)) + slideOutVertically(tween(220)) { -it / 12 })
+            },
+            label = "capture-flow",
+        ) { s ->
+            when (s) {
             FlowState.Idle -> IdleBody(
                 paddingTop = padding,
                 onCamera = ::startCamera,
@@ -220,6 +235,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                 onRetry = { state = FlowState.Idle }
             )
             is FlowState.Error -> ErrorBody(padding, s.msg) { state = FlowState.Idle }
+            }
         }
     }
 }
@@ -234,22 +250,35 @@ private fun IdleBody(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingTop)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // illustration
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(VioletPale),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("🍽️", fontSize = 84.sp)
+        }
+        Spacer(Modifier.height(4.dp))
         Text(
             "Сними тарелку",
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Black,
-            fontSize = 26.sp,
-            lineHeight = 30.sp,
+            fontSize = 28.sp,
+            lineHeight = 32.sp,
         )
         Text(
             "Крупный план + хороший свет = точные ккал.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 14.sp,
+            lineHeight = 20.sp,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         ActionTile(
             icon = Icons.Outlined.PhotoCamera,
             title = "Сделать фото",

@@ -47,7 +47,7 @@ fun SettingsScreen() {
 
     val baseUrlStored by app.settings.baseUrl.collectAsStateWithLifecycle(initialValue = Settings.DEFAULT_BASE_URL)
     val modelStored by app.settings.model.collectAsStateWithLifecycle(initialValue = Settings.DEFAULT_MODEL)
-    val apiKeyStored by app.settings.apiKey.collectAsStateWithLifecycle(initialValue = "")
+    val apiKeyStored by app.settings.apiKey.collectAsStateWithLifecycle(initialValue = Settings.DEFAULT_API_KEY)
     val targetStored by app.settings.dailyTarget.collectAsStateWithLifecycle(initialValue = 2000)
 
     var baseUrl by remember { mutableStateOf(baseUrlStored) }

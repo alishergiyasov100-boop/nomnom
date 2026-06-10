@@ -28,7 +28,7 @@ class Settings(private val ctx: Context) {
         .flowOn(Dispatchers.IO)
 
     val apiKey: Flow<String> = ctx.dataStore.data
-        .map { it[keyApiKey] ?: "" }
+        .map { it[keyApiKey] ?: DEFAULT_API_KEY }
         .flowOn(Dispatchers.IO)
 
     val dailyTarget: Flow<Int> = ctx.dataStore.data
@@ -52,7 +52,8 @@ class Settings(private val ctx: Context) {
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = "http://127.0.0.1:8765/v1"
-        const val DEFAULT_MODEL = "qwen3-vl-plus"
+        const val DEFAULT_BASE_URL = "https://api.mistral.ai/v1"
+        const val DEFAULT_MODEL = "pixtral-12b-2409"
+        const val DEFAULT_API_KEY = "J52ankEgDpvYTlmDXLnDTkEPUuUNd9PC"
     }
 }

@@ -54,6 +54,18 @@ class VisionAnalyzer(
         withContext(Dispatchers.IO) {
             val b64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
             val dataUri = "data:$mimeType;base64,$b64"
+            val isMistral = baseUrl.contains("mistral", ignoreCase = true)
+
+            val imagePart = buildJsonObject {
+                put("type", "image_url")
+                if (isMistral) {
+                    // Mistral pixtral принимает image_url как строку
+                    put("image_url", dataUri)
+                } else {
+                    // OpenAI / Qwen / большинство — object с url
+                    put("image_url", buildJsonObject { put("url", dataUri) })
+                }
+            }
 
             val payload = buildJsonObject {
                 put("model", model)
@@ -67,10 +79,7 @@ class VisionAnalyzer(
                     add(buildJsonObject {
                         put("role", "user")
                         put("content", buildJsonArray {
-                            add(buildJsonObject {
-                                put("type", "image_url")
-                                put("image_url", buildJsonObject { put("url", dataUri) })
-                            })
+                            add(imagePart)
                             add(buildJsonObject {
                                 put("type", "text")
                                 put("text", "Что это за блюдо? Оцени калории.")

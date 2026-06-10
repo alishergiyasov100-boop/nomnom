@@ -137,7 +137,11 @@ fun HomeScreen(onCapture: () -> Unit) {
                     Spacer(Modifier.height(10.dp))
                 }
                 items(today, key = { it.id }) { e ->
-                    Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp, vertical = 5.dp)
+                            .animateItem()
+                    ) {
                         DishRow(e)
                     }
                 }
@@ -345,13 +349,20 @@ private fun MealsGrid(buckets: List<MealBucket>) {
 private fun MealCard(b: MealBucket, modifier: Modifier = Modifier) {
     val kcal = b.entries.sumOf { it.kcal }
     val isEmpty = b.entries.isEmpty()
+    val bg = if (isEmpty) MaterialTheme.colorScheme.surfaceVariant
+             else MaterialTheme.colorScheme.surface
+    val border = androidx.compose.foundation.BorderStroke(
+        1.dp,
+        if (isEmpty) Color.Transparent else MaterialTheme.colorScheme.outline
+    )
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = bg),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = border,
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     b.name,
@@ -362,21 +373,6 @@ private fun MealCard(b: MealBucket, modifier: Modifier = Modifier) {
                 Spacer(Modifier.weight(1f))
                 if (b.pillTime != null) {
                     TimePill(b.pillTime)
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(VioletPillBg),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "+",
-                            color = VioletDeep,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                        )
-                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
