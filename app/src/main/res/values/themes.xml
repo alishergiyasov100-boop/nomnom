@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.NomNom" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#F4ECDF</item>
-        <item name="android:navigationBarColor">#F4ECDF</item>
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

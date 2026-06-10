@@ -41,7 +41,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -90,7 +91,6 @@ fun CaptureFlowScreen(nav: NavController) {
 
     fun runAnalyze(uri: Uri) {
         state = FlowState.Loading(uri)
-        // Application scope — переживает уход с экрана / смену state в Composable
         app.appScope.launch {
             try {
                 val bytes = withContext(Dispatchers.IO) {
@@ -137,38 +137,23 @@ fun CaptureFlowScreen(nav: NavController) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Новое блюдо", fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "назад")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                )
+    when (val s = state) {
+        FlowState.Idle -> IdleScreen(nav, onCamera = ::startCamera) {
+            galleryLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
             )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            when (val s = state) {
-                FlowState.Idle -> PickerStub(onCamera = ::startCamera) {
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                }
-                is FlowState.Loading -> PreviewBlock(s.uri)
-                is FlowState.Ready -> ResultBlock(
-                    uri = s.uri, result = s.result,
+        }
+        is FlowState.Loading -> ImageWithSheet(
+            uri = s.uri,
+            onBack = { nav.popBackStack() },
+            sheet = { LoadingSheet() }
+        )
+        is FlowState.Ready -> ImageWithSheet(
+            uri = s.uri,
+            onBack = { nav.popBackStack() },
+            sheet = {
+                ResultSheet(
+                    result = s.result,
                     onSave = {
                         app.appScope.launch {
                             val img = saveImage(ctx, s.uri)
@@ -191,103 +176,190 @@ fun CaptureFlowScreen(nav: NavController) {
                     },
                     onRetry = { state = FlowState.Idle }
                 )
-                is FlowState.Error -> ErrorBlock(s.uri, s.msg) { state = FlowState.Idle }
+            }
+        )
+        is FlowState.Error -> ImageWithSheet(
+            uri = s.uri,
+            onBack = { nav.popBackStack() },
+            sheet = { ErrorSheet(s.msg) { state = FlowState.Idle } }
+        )
+    }
+}
+
+/* ── IDLE: чистый экран с двумя крупными action-картами ── */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IdleScreen(
+    nav: NavController,
+    onCamera: () -> Unit,
+    onGallery: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Новое блюдо", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "назад")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                "Сними тарелку",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                "Чем крупнее план и ярче свет — тем точнее ккал.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            ActionTile(
+                icon = Icons.Default.PhotoCamera,
+                title = "Камера",
+                subtitle = "Снять прямо сейчас",
+                primary = true,
+                onClick = onCamera,
+            )
+            ActionTile(
+                icon = Icons.Default.PhotoLibrary,
+                title = "Галерея",
+                subtitle = "Выбрать готовое фото",
+                primary = false,
+                onClick = onGallery,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    primary: Boolean,
+    onClick: () -> Unit,
+) {
+    val container = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val content = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+    val subtle = if (primary) content.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = container),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(content.copy(alpha = if (primary) 0.18f else 0.06f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, contentDescription = null, tint = content) }
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, color = content, fontSize = 17.sp)
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, color = subtle, fontSize = 13.sp)
             }
         }
     }
 }
 
+/* ── Universal screen: large hero photo + bottom sheet ── */
 @Composable
-private fun PickerStub(onCamera: () -> Unit, onGallery: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text(
-                "Сфоткай или выбери из галереи",
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 17.sp,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Чем крупнее план — тем точнее ккал. Свет / угол важны 🍝",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-            )
-        }
-    }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
-            onClick = onCamera,
-            modifier = Modifier.weight(1f).height(56.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
-            Icon(Icons.Default.PhotoCamera, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Камера", fontWeight = FontWeight.SemiBold)
-        }
-        OutlinedButton(
-            onClick = onGallery,
-            modifier = Modifier.weight(1f).height(56.dp),
-            shape = RoundedCornerShape(18.dp),
-        ) {
-            Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Галерея", fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun PreviewBlock(uri: Uri) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(28.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.BottomStart,
-    ) {
-        AsyncImage(
-            model = uri,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-        )
+private fun ImageWithSheet(
+    uri: Uri,
+    onBack: () -> Unit,
+    sheet: @Composable () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // hero фото — edge-to-edge, верхняя половина экрана
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .aspectRatio(4f / 5f)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.5.dp,
-                    color = MaterialTheme.colorScheme.primary,
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            // лёгкий градиент-фейд от низа к фото (читаемость)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            0.7f to Color.Transparent,
+                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.55f),
+                        )
+                    )
+            )
+            // back-кнопка поверх фото в стеклянной таблетке
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .padding(12.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "назад",
+                    tint = MaterialTheme.colorScheme.onBackground,
                 )
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(
-                        "Нюхаю фото…",
-                        color = MaterialTheme.colorScheme.inverseOnSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp,
+            }
+        }
+
+        // bottom sheet, выезжает поверх фото на 24dp
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 0.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                     )
-                    Text(
-                        "Qwen Vision считает калории",
-                        color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                    )
+                    Spacer(Modifier.height(14.dp))
+                    sheet()
                 }
             }
         }
@@ -295,176 +367,174 @@ private fun PreviewBlock(uri: Uri) {
 }
 
 @Composable
-private fun ResultBlock(
-    uri: Uri,
-    result: AnalysisResult,
-    onSave: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 11f)
-            .clip(RoundedCornerShape(28.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        AsyncImage(
-            model = uri,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-
-    // dish + ккал — главный hero
-    Column {
-        Text(
-            result.dish,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Black,
-            fontSize = 28.sp,
-            lineHeight = 32.sp,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                result.kcal.toString(),
+private fun LoadingSheet() {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(22.dp),
+                strokeWidth = 2.5.dp,
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Black,
-                fontSize = 64.sp,
-                lineHeight = 64.sp,
             )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "ккал",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-        }
-    }
-
-    // макро-ряд: три пилюли
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MacroChip("белки", result.proteinG, Modifier.weight(1f))
-        MacroChip("жиры", result.fatG, Modifier.weight(1f))
-        MacroChip("углеводы", result.carbsG, Modifier.weight(1f))
-    }
-
-    // комментарий — без рамки, как заметка от шефа
-    if (result.comment.isNotBlank()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            ),
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+            Spacer(Modifier.width(14.dp))
+            Column {
                 Text(
-                    "от шефа",
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.65f),
-                    fontSize = 11.sp,
+                    "Анализирую блюдо…",
                     fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 16.sp,
                 )
-                Spacer(Modifier.height(6.dp))
                 Text(
-                    result.comment,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp,
+                    "Qwen Vision считает калории и БЖУ",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
                 )
             }
         }
     }
+}
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(
-            onClick = onRetry,
-            modifier = Modifier.weight(1f).height(54.dp),
-            shape = RoundedCornerShape(18.dp),
-        ) { Text("Ещё раз") }
-        Button(
-            onClick = onSave,
-            modifier = Modifier.weight(1.4f).height(54.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) { Text("В дневник", fontWeight = FontWeight.SemiBold) }
+@Composable
+private fun ResultSheet(
+    result: AnalysisResult,
+    onSave: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            result.dish,
+            fontWeight = FontWeight.Black,
+            fontSize = 26.sp,
+            color = MaterialTheme.colorScheme.onBackground,
+            lineHeight = 30.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                result.kcal.toString(),
+                fontWeight = FontWeight.Black,
+                fontSize = 56.sp,
+                color = MaterialTheme.colorScheme.primary,
+                lineHeight = 58.sp,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "ккал",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MacroChip("белки", result.proteinG, Modifier.weight(1f))
+            MacroChip("жиры", result.fatG, Modifier.weight(1f))
+            MacroChip("углеводы", result.carbsG, Modifier.weight(1f))
+        }
+        if (result.comment.isNotBlank()) {
+            Spacer(Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "ОТ ШЕФА",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        result.comment,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = onRetry,
+                modifier = Modifier.weight(1f).height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) { Text("Ещё раз", fontWeight = FontWeight.SemiBold) }
+            Button(
+                onClick = onSave,
+                modifier = Modifier.weight(1.4f).height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) { Text("В дневник", fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+        }
+        Spacer(Modifier.height(6.dp))
     }
 }
 
 @Composable
 private fun MacroChip(label: String, value: Int, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(vertical = 10.dp, horizontal = 12.dp),
     ) {
-        Column(modifier = Modifier.padding(vertical = 12.dp, horizontal = 14.dp)) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                label,
+                value.toString(),
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Black,
+                fontSize = 20.sp,
+            )
+            Text(
+                " г",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 3.dp),
             )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    value.toString(),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 22.sp,
-                )
-                Text(
-                    " г",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 3.dp),
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun ErrorBlock(uri: Uri?, msg: String, onRetry: () -> Unit) {
-    if (uri != null) {
-        AsyncImage(
-            model = uri,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 10f)
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+private fun ErrorSheet(msg: String, onRetry: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Не получилось распознать",
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.error,
+            fontSize = 18.sp,
         )
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+        Spacer(Modifier.height(8.dp))
+        Text(
+            msg,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
         )
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-                "Не получилось распознать",
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                msg,
-                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-        }
-    }
-    TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-        Text("Попробовать снова")
+        Spacer(Modifier.height(18.dp))
+        Button(
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) { Text("Попробовать снова", fontWeight = FontWeight.SemiBold) }
     }
 }
 

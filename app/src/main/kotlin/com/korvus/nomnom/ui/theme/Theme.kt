@@ -13,73 +13,73 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightScheme = lightColorScheme(
-    primary = TerracottaPrimary,
-    onPrimary = Color(0xFFFFF6E8),
-    primaryContainer = TerracottaSoft,
-    onPrimaryContainer = Color(0xFF3A1505),
+    primary = ForestPrimary,
+    onPrimary = White,
+    primaryContainer = MintContainer,
+    onPrimaryContainer = MintOn,
 
-    secondary = MustardGold,
-    onSecondary = Color(0xFFFFF6E8),
-    secondaryContainer = HoneyContainer,
-    onSecondaryContainer = Color(0xFF3D2A0F),
+    secondary = OliveSecondary,
+    onSecondary = White,
+    secondaryContainer = OliveContainer,
+    onSecondaryContainer = Color(0xFF1F2D11),
 
-    tertiary = AubergineTertiary,
-    onTertiary = Color(0xFFFFF6E8),
+    tertiary = GoldenAccent,
+    onTertiary = Color(0xFF2A1F00),
 
-    background = IvoryBg,
-    onBackground = CoffeeOnBg,
+    background = White,
+    onBackground = Charcoal,
 
-    surface = IvorySurface,
-    onSurface = CoffeeOnBg,
-    surfaceVariant = SandVariant,
-    onSurfaceVariant = TaupeMuted,
+    surface = White,
+    onSurface = Charcoal,
+    surfaceVariant = OffWhite,
+    onSurfaceVariant = MutedText,
 
-    outline = ClayOutline,
-    outlineVariant = Color(0xFFD8C9B2),
+    outline = Hairline,
+    outlineVariant = Color(0xFFEDEDEA),
 
-    error = BurntError,
-    onError = OnError,
+    error = CrimsonError,
+    onError = White,
     errorContainer = RoseErrorContainer,
-    onErrorContainer = Color(0xFF3A1505),
+    onErrorContainer = Color(0xFF410E0B),
 
-    scrim = Color(0xFF1F1308),
-    inverseSurface = Color(0xFF2A1F15),
-    inverseOnSurface = Color(0xFFF5EBDA),
+    scrim = Color(0xFF000000),
+    inverseSurface = Charcoal,
+    inverseOnSurface = White,
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = AmberPrimary,
-    onPrimary = CoffeeOnPrimaryDark,
-    primaryContainer = BurntOrangeContainer,
-    onPrimaryContainer = Color(0xFFFFD9B8),
+    primary = MintPrimaryDark,
+    onPrimary = Color(0xFF0E1410),
+    primaryContainer = ForestContDark,
+    onPrimaryContainer = Color(0xFFC8E6D5),
 
-    secondary = HoneyDark,
-    onSecondary = CoffeeOnPrimaryDark,
-    secondaryContainer = HoneyContainerDark,
-    onSecondaryContainer = Color(0xFFF0DCAE),
+    secondary = Color(0xFFAFC79B),
+    onSecondary = Color(0xFF0E1410),
+    secondaryContainer = Color(0xFF2D3D24),
+    onSecondaryContainer = Color(0xFFD7E5C8),
 
-    tertiary = Color(0xFFE6A8A8),
-    onTertiary = Color(0xFF3A1515),
+    tertiary = GoldenAccent,
+    onTertiary = Color(0xFF2A1F00),
 
-    background = EspressoBg,
-    onBackground = CreamOnBg,
+    background = InkBg,
+    onBackground = CreamOn,
 
-    surface = EspressoSurface,
-    onSurface = CreamOnBg,
-    surfaceVariant = EspressoSurfaceVar,
-    onSurfaceVariant = SandOnVariant,
+    surface = InkSurface,
+    onSurface = CreamOn,
+    surfaceVariant = InkSurfaceVar,
+    onSurfaceVariant = MutedTextDark,
 
-    outline = Color(0xFF6E5B43),
-    outlineVariant = Color(0xFF3D2D20),
+    outline = Color(0xFF2E3A33),
+    outlineVariant = Color(0xFF1F2820),
 
-    error = Color(0xFFFFB59A),
-    onError = Color(0xFF3A1505),
-    errorContainer = Color(0xFF6B2A12),
-    onErrorContainer = Color(0xFFFFD9C8),
+    error = Color(0xFFF2B8B5),
+    onError = Color(0xFF601410),
+    errorContainer = Color(0xFF8C1D18),
+    onErrorContainer = Color(0xFFF9DEDC),
 
     scrim = Color.Black,
-    inverseSurface = Color(0xFFF0E4D2),
-    inverseOnSurface = Color(0xFF1A120B),
+    inverseSurface = CreamOn,
+    inverseOnSurface = InkBg,
 )
 
 @Composable
