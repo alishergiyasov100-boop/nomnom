@@ -73,7 +73,7 @@ private sealed class FlowState {
     object Idle : FlowState()
     data class Loading(val uri: Uri) : FlowState()
     data class Ready(val uri: Uri, val result: AnalysisResult) : FlowState()
-    data class Error(val uri: Uri?, val msg: String) : FlowState()
+    data class Error(val uri: Uri, val msg: String) : FlowState()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
