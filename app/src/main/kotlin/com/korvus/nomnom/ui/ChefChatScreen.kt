@@ -64,7 +64,7 @@ fun ChefChatScreen() {
     val target by app.settings.dailyTarget.collectAsStateWithLifecycle(2000)
     val baseUrl by app.settings.baseUrl.collectAsStateWithLifecycle(initialValue = "")
     val model by app.settings.model.collectAsStateWithLifecycle(initialValue = "")
-    val apiKey by app.settings.apiKey.collectAsStateWithLifecycle(initialValue = "")
+    val apiKeys by app.settings.apiKeys.collectAsStateWithLifecycle(initialValue = emptyList())
 
     val msgs = remember {
         mutableStateListOf(
@@ -133,7 +133,11 @@ fun ChefChatScreen() {
                     val history = msgs.map { it.role to it.text }
                     scope.launch {
                         try {
-                            val reply = ChefChat(baseUrl, model, apiKey).ask(context, history)
+                            val startIdx = app.settings.currentRotationIdx()
+                            val reply = ChefChat(
+                                baseUrl, model, apiKeys, startIdx,
+                                onAdvance = { app.settings.advanceRotation() },
+                            ).ask(context, history)
                             msgs.add(ChatMsg("assistant", reply))
                         } catch (t: Throwable) {
                             msgs.add(ChatMsg("assistant", "⚠ Что-то пошло не так: ${t.message ?: t.toString()}"))

@@ -26,7 +26,9 @@ private val json = Json { ignoreUnknownKeys = true }
 class ChefChat(
     private val baseUrl: String,
     private val model: String,
-    private val apiKey: String = "",
+    private val keys: List<String> = emptyList(),
+    private val startIdx: Int = 0,
+    private val onAdvance: suspend () -> Unit = {},
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -68,21 +70,23 @@ class ChefChat(
             }
 
             val url = baseUrl.trimEnd('/') + "/chat/completions"
-            val reqBuilder = Request.Builder().url(url)
-                .post(payload.toString().toRequestBody(JSON_MEDIA))
-                .header("Content-Type", "application/json")
-            if (apiKey.isNotBlank()) reqBuilder.header("Authorization", "Bearer $apiKey")
+            val bodyBytes = payload.toString().toRequestBody(JSON_MEDIA)
 
-            val resp = client.newCall(reqBuilder.build()).execute()
-            val body = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}: ${body.take(300)}")
-
-            json.parseToJsonElement(body).jsonObject
-                .get("choices")?.jsonArray?.get(0)?.jsonObject
-                ?.get("message")?.jsonObject
-                ?.get("content")?.jsonPrimitive?.content
-                ?.trim()
-                ?: throw IOException("unexpected response: ${body.take(300)}")
+            rotateKeys(keys, startIdx, onAdvance) { key ->
+                val reqBuilder = Request.Builder().url(url)
+                    .post(bodyBytes)
+                    .header("Content-Type", "application/json")
+                if (key.isNotBlank()) reqBuilder.header("Authorization", "Bearer $key")
+                val resp = client.newCall(reqBuilder.build()).execute()
+                val body = resp.body?.string().orEmpty()
+                if (!resp.isSuccessful) throw RotatableHttpException(resp.code, body.take(300))
+                json.parseToJsonElement(body).jsonObject
+                    .get("choices")?.jsonArray?.get(0)?.jsonObject
+                    ?.get("message")?.jsonObject
+                    ?.get("content")?.jsonPrimitive?.content
+                    ?.trim()
+                    ?: throw IOException("unexpected response: ${body.take(300)}")
+            }
         }
 
     companion object {

@@ -88,11 +88,19 @@ fun SettingsScreen() {
         ) {
             SectionCard(
                 title = "Vision API",
-                hint = "Куда отправлять фото блюд для оценки калорий."
+                hint = "Куда отправлять фото блюд для оценки калорий. Если несколько ключей — впиши по одному в строку, NomNom будет крутить их по кругу и переключаться при лимите (429)."
             ) {
                 FieldOutlined("Base URL", baseUrl, Settings.DEFAULT_BASE_URL) { baseUrl = it }
                 FieldOutlined("Модель", model, Settings.DEFAULT_MODEL) { model = it }
-                FieldOutlined("API ключ (если нужен)", apiKey, "") { apiKey = it }
+                FieldMultiline("API ключи (по одному в строку)", apiKey, "sk-...") { apiKey = it }
+                val keyCount = Settings.parseKeys(apiKey).size
+                if (keyCount > 0) {
+                    Text(
+                        "🔑 в ротации: $keyCount",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    )
+                }
             }
             SectionCard(title = "Цель", hint = "Ежедневная норма калорий — для прогресс-кольца.") {
                 FieldOutlined("ккал в день", target, "2000") { target = it.filter(Char::isDigit) }
@@ -169,6 +177,31 @@ private fun FieldOutlined(
         label = { Text(label, fontSize = 12.sp) },
         placeholder = { Text(placeholder, fontSize = 13.sp) },
         singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.background,
+            unfocusedContainerColor = MaterialTheme.colorScheme.background,
+        ),
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FieldMultiline(
+    label: String,
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = { Text(placeholder, fontSize = 13.sp) },
+        singleLine = false,
+        minLines = 2,
+        maxLines = 8,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(

@@ -2,10 +2,12 @@ package com.korvus.nomnom.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -18,6 +20,7 @@ class Settings(private val ctx: Context) {
     private val keyModel = stringPreferencesKey("model")
     private val keyApiKey = stringPreferencesKey("api_key")
     private val keyDailyTarget = stringPreferencesKey("daily_target")
+    private val keyRotationIdx = intPreferencesKey("rotation_idx")
 
     val baseUrl: Flow<String> = ctx.dataStore.data
         .map { it[keyBaseUrl] ?: DEFAULT_BASE_URL }
@@ -30,6 +33,8 @@ class Settings(private val ctx: Context) {
     val apiKey: Flow<String> = ctx.dataStore.data
         .map { it[keyApiKey] ?: DEFAULT_API_KEY }
         .flowOn(Dispatchers.IO)
+
+    val apiKeys: Flow<List<String>> = apiKey.map { parseKeys(it) }
 
     val dailyTarget: Flow<Int> = ctx.dataStore.data
         .map { (it[keyDailyTarget] ?: "2000").toIntOrNull() ?: 2000 }
@@ -51,9 +56,27 @@ class Settings(private val ctx: Context) {
         ctx.dataStore.edit { it[keyDailyTarget] = v.toString() }
     }
 
+    /** Текущий индекс ротации, начиная с которого пробовать ключи. */
+    suspend fun currentRotationIdx(): Int = withContext(Dispatchers.IO) {
+        ctx.dataStore.data.first()[keyRotationIdx] ?: 0
+    }
+
+    /** Сдвинуть указатель ротации на следующий ключ. */
+    suspend fun advanceRotation() = withContext(Dispatchers.IO) {
+        val keys = parseKeys(apiKey.first())
+        if (keys.size <= 1) return@withContext
+        ctx.dataStore.edit { prefs ->
+            val cur = prefs[keyRotationIdx] ?: 0
+            prefs[keyRotationIdx] = (cur + 1) % keys.size
+        }
+    }
+
     companion object {
         const val DEFAULT_BASE_URL = "https://api.mistral.ai/v1"
         const val DEFAULT_MODEL = "pixtral-12b-2409"
         const val DEFAULT_API_KEY = "J52ankEgDpvYTlmDXLnDTkEPUuUNd9PC"
+
+        fun parseKeys(raw: String): List<String> =
+            raw.split('\n', ',').map { it.trim() }.filter { it.isNotEmpty() }
     }
 }

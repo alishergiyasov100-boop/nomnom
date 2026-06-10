@@ -104,7 +104,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
 
     val baseUrl by app.settings.baseUrl.collectAsStateWithLifecycle(initialValue = "")
     val model by app.settings.model.collectAsStateWithLifecycle(initialValue = "")
-    val apiKey by app.settings.apiKey.collectAsStateWithLifecycle(initialValue = "")
+    val apiKeys by app.settings.apiKeys.collectAsStateWithLifecycle(initialValue = emptyList())
 
     var state by remember { mutableStateOf<FlowState>(FlowState.Idle) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
@@ -119,7 +119,11 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                 if (baseUrl.isBlank() || model.isBlank()) {
                     throw IllegalStateException("В настройках не задан Base URL или модель")
                 }
-                val result = VisionAnalyzer(baseUrl, model, apiKey).analyze(bytes)
+                val startIdx = app.settings.currentRotationIdx()
+                val result = VisionAnalyzer(
+                    baseUrl, model, apiKeys, startIdx,
+                    onAdvance = { app.settings.advanceRotation() },
+                ).analyze(bytes)
                 state = FlowState.Ready(uri, result)
             } catch (t: Throwable) {
                 state = FlowState.Error(uri, t.message ?: t.toString())
