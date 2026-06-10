@@ -11,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,12 +41,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +70,6 @@ import java.util.UUID
 
 private sealed class FlowState {
     object Idle : FlowState()
-    data class Picked(val uri: Uri) : FlowState()
     data class Loading(val uri: Uri) : FlowState()
     data class Ready(val uri: Uri, val result: AnalysisResult) : FlowState()
     data class Error(val uri: Uri?, val msg: String) : FlowState()
@@ -83,7 +80,6 @@ private sealed class FlowState {
 fun CaptureFlowScreen(nav: NavController) {
     val ctx = LocalContext.current
     val app = NomNomApp.instance
-    val scope = rememberCoroutineScope()
 
     val baseUrl by app.settings.baseUrl.collectAsStateWithLifecycle(initialValue = "")
     val model by app.settings.model.collectAsStateWithLifecycle(initialValue = "")
@@ -92,17 +88,32 @@ fun CaptureFlowScreen(nav: NavController) {
     var state by remember { mutableStateOf<FlowState>(FlowState.Idle) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
+    fun runAnalyze(uri: Uri) {
+        state = FlowState.Loading(uri)
+        // Application scope — переживает уход с экрана / смену state в Composable
+        app.appScope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                } ?: throw IllegalStateException("не удалось прочитать фото")
+                if (baseUrl.isBlank() || model.isBlank()) {
+                    throw IllegalStateException("В настройках не задан Base URL или модель")
+                }
+                val result = VisionAnalyzer(baseUrl, model, apiKey).analyze(bytes)
+                state = FlowState.Ready(uri, result)
+            } catch (t: Throwable) {
+                state = FlowState.Error(uri, t.message ?: t.toString())
+            }
+        }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) state = FlowState.Picked(uri)
-    }
+    ) { uri -> if (uri != null) runAnalyze(uri) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
-    ) { ok ->
-        if (ok && cameraUri != null) state = FlowState.Picked(cameraUri!!)
-    }
+    ) { ok -> if (ok && cameraUri != null) runAnalyze(cameraUri!!) }
 
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -116,29 +127,13 @@ fun CaptureFlowScreen(nav: NavController) {
 
     fun startCamera() {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED) {
+            == PackageManager.PERMISSION_GRANTED
+        ) {
             val uri = createCameraOutputUri(ctx)
             cameraUri = uri
             cameraLauncher.launch(uri)
         } else {
             permLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    LaunchedEffect(state) {
-        val s = state
-        if (s is FlowState.Picked && baseUrl.isNotBlank() && model.isNotBlank()) {
-            state = FlowState.Loading(s.uri)
-            try {
-                val bytes = withContext(Dispatchers.IO) {
-                    ctx.contentResolver.openInputStream(s.uri)?.use { it.readBytes() }
-                } ?: throw IllegalStateException("не удалось прочитать фото")
-                val analyzer = VisionAnalyzer(baseUrl, model, apiKey)
-                val result = analyzer.analyze(bytes)
-                state = FlowState.Ready(s.uri, result)
-            } catch (t: Throwable) {
-                state = FlowState.Error(s.uri, t.message ?: t.toString())
-            }
         }
     }
 
@@ -162,8 +157,8 @@ fun CaptureFlowScreen(nav: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             when (val s = state) {
                 FlowState.Idle -> PickerStub(onCamera = ::startCamera) {
@@ -171,12 +166,11 @@ fun CaptureFlowScreen(nav: NavController) {
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 }
-                is FlowState.Picked -> PreviewBlock(s.uri, statusLine = "Готовлю к анализу…")
-                is FlowState.Loading -> PreviewBlock(s.uri, statusLine = "Мика-нейронка нюхает фото…", loading = true)
+                is FlowState.Loading -> PreviewBlock(s.uri)
                 is FlowState.Ready -> ResultBlock(
                     uri = s.uri, result = s.result,
                     onSave = {
-                        scope.launch {
+                        app.appScope.launch {
                             val img = saveImage(ctx, s.uri)
                             app.dayLog.add(
                                 FoodEntry(
@@ -207,18 +201,20 @@ fun CaptureFlowScreen(nav: NavController) {
 private fun PickerStub(onCamera: () -> Unit, onGallery: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(24.dp)) {
             Text(
                 "Сфоткай или выбери из галереи",
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 17.sp,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
-                "Лучше — крупный план, чтобы было видно состав. Нейронка любит фактуру 🍝",
+                "Чем крупнее план — тем точнее ккал. Свет / угол важны 🍝",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
             )
@@ -227,7 +223,8 @@ private fun PickerStub(onCamera: () -> Unit, onGallery: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(
             onClick = onCamera,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).height(56.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -235,41 +232,65 @@ private fun PickerStub(onCamera: () -> Unit, onGallery: () -> Unit) {
         ) {
             Icon(Icons.Default.PhotoCamera, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Камера")
+            Text("Камера", fontWeight = FontWeight.SemiBold)
         }
-        OutlinedButton(onClick = onGallery, modifier = Modifier.weight(1f)) {
+        OutlinedButton(
+            onClick = onGallery,
+            modifier = Modifier.weight(1f).height(56.dp),
+            shape = RoundedCornerShape(18.dp),
+        ) {
             Icon(Icons.Default.PhotoLibrary, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text("Галерея")
+            Text("Галерея", fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
 @Composable
-private fun PreviewBlock(uri: Uri, statusLine: String, loading: Boolean = false) {
-    AsyncImage(
-        model = uri,
-        contentDescription = null,
+private fun PreviewBlock(uri: Uri) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
-    )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.width(20.dp).height(20.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.width(12.dp))
-        }
-        Text(
-            statusLine,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Medium,
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        AsyncImage(
+            model = uri,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
         )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text(
+                        "Нюхаю фото…",
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "Qwen Vision считает калории",
+                        color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -280,72 +301,75 @@ private fun ResultBlock(
     onSave: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    AsyncImage(
-        model = uri,
-        contentDescription = null,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 10f)
-            .clip(RoundedCornerShape(20.dp))
+            .aspectRatio(16f / 11f)
+            .clip(RoundedCornerShape(28.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        AsyncImage(
+            model = uri,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+
+    // dish + ккал — главный hero
+    Column {
+        Text(
+            result.dish,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Black,
+            fontSize = 28.sp,
+            lineHeight = 32.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                result.dish,
-                color = MaterialTheme.colorScheme.onPrimary,
+                result.kcal.toString(),
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Black,
-                fontSize = 22.sp,
+                fontSize = 64.sp,
+                lineHeight = 64.sp,
             )
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    result.kcal.toString(),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 48.sp,
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "ккал",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row {
-                Macro("Б", result.proteinG)
-                Spacer(Modifier.width(14.dp))
-                Macro("Ж", result.fatG)
-                Spacer(Modifier.width(14.dp))
-                Macro("У", result.carbsG)
-            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "ккал",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 18.sp,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
         }
     }
 
+    // макро-ряд: три пилюли
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        MacroChip("белки", result.proteinG, Modifier.weight(1f))
+        MacroChip("жиры", result.fatG, Modifier.weight(1f))
+        MacroChip("углеводы", result.carbsG, Modifier.weight(1f))
+    }
+
+    // комментарий — без рамки, как заметка от шефа
     if (result.comment.isNotBlank()) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ),
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Text(
-                    "Комментарий",
-                    color = MaterialTheme.colorScheme.secondary,
+                    "от шефа",
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.65f),
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
                     result.comment,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     fontSize = 15.sp,
                     lineHeight = 22.sp,
                 )
@@ -354,39 +378,53 @@ private fun ResultBlock(
     }
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = onRetry, modifier = Modifier.weight(1f)) { Text("Ещё раз") }
+        OutlinedButton(
+            onClick = onRetry,
+            modifier = Modifier.weight(1f).height(54.dp),
+            shape = RoundedCornerShape(18.dp),
+        ) { Text("Ещё раз") }
         Button(
             onClick = onSave,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1.4f).height(54.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.onSecondary,
-            )
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
         ) { Text("В дневник", fontWeight = FontWeight.SemiBold) }
     }
 }
 
 @Composable
-private fun Macro(label: String, value: Int) {
-    Row(verticalAlignment = Alignment.Bottom) {
-        Text(
-            "$label ",
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-            fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 2.dp),
-        )
-        Text(
-            value.toString(),
-            color = MaterialTheme.colorScheme.onPrimary,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-        )
-        Text(
-            "г",
-            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 2.dp, start = 1.dp),
-        )
+private fun MacroChip(label: String, value: Int, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(vertical = 12.dp, horizontal = 14.dp)) {
+            Text(
+                label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    value.toString(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 22.sp,
+                )
+                Text(
+                    " г",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 3.dp),
+                )
+            }
+        }
     }
 }
 
@@ -399,26 +437,35 @@ private fun ErrorBlock(uri: Uri?, msg: String, onRetry: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 10f)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
     }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f))
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
                 "Не получилось распознать",
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.tertiary,
+                color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            Spacer(Modifier.height(4.dp))
-            Text(msg, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                msg,
+                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
         }
     }
-    TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Попробовать ещё") }
+    TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+        Text("Попробовать снова")
+    }
 }
 
 private fun createCameraOutputUri(ctx: Context): Uri {

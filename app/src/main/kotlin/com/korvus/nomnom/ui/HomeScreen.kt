@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,7 +38,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +50,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(nav: NavController) {
     val app = NomNomApp.instance
@@ -67,17 +67,26 @@ fun HomeScreen(nav: NavController) {
             TopAppBar(
                 title = {
                     Text(
-                        "🍴 NomNom",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
+                        "NomNom",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 24.sp,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                 },
                 actions = {
                     IconButton(onClick = { nav.navigate("history") }) {
-                        Icon(Icons.Default.History, contentDescription = "история")
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = "история",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
                     }
                     IconButton(onClick = { nav.navigate("settings") }) {
-                        Icon(Icons.Default.Settings, contentDescription = "настройки")
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "настройки",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -90,10 +99,11 @@ fun HomeScreen(nav: NavController) {
                 onClick = { nav.navigate("capture") },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(20.dp),
             ) {
                 Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Снять блюдо", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(10.dp))
+                Text("Снять блюдо", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -102,17 +112,20 @@ fun HomeScreen(nav: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item { TodayCard(todayKcal, target, pct, today.size) }
+            item { HeroTodayCard(todayKcal, target, pct, today.size) }
+            if (today.isNotEmpty()) {
+                item { MacroSummaryRow(today) }
+            }
             item {
                 Text(
-                    "Сегодня съел",
+                    "сегодня",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, top = 12.dp),
                 )
             }
             if (today.isEmpty()) {
@@ -120,73 +133,87 @@ fun HomeScreen(nav: NavController) {
             } else {
                 items(today, key = { it.id }) { e -> EntryRow(e) }
             }
-            item { Spacer(Modifier.height(80.dp)) }
+            item { Spacer(Modifier.height(96.dp)) }
         }
     }
 }
 
 @Composable
-private fun TodayCard(kcal: Int, target: Int, pct: Float, count: Int) {
+private fun HeroTodayCard(kcal: Int, target: Int, pct: Float, count: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp)) {
             Text(
-                "Сегодня",
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                fontSize = 14.sp,
+                greeting(),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     kcal.toString(),
                     color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 56.sp,
+                    fontSize = 64.sp,
                     fontWeight = FontWeight.Black,
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "ккал",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                    fontSize = 18.sp,
-                    modifier = Modifier.padding(bottom = 10.dp),
+                    lineHeight = 64.sp,
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "/ $target",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(bottom = 12.dp),
-                )
+                Column(modifier = Modifier.padding(bottom = 10.dp)) {
+                    Text(
+                        "ккал",
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "из $target",
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
+                        fontSize = 12.sp,
+                    )
+                }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
             LinearProgressIndicator(
-                progress = { (pct).coerceAtMost(1f) },
+                progress = { pct.coerceAtMost(1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(6.dp)),
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
                 color = MaterialTheme.colorScheme.onPrimary,
-                trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f),
+                trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f),
             )
             Spacer(Modifier.height(10.dp))
-            val hint = when {
-                count == 0 -> "Ещё ничего не ел сегодня — нажми «Снять блюдо»"
-                pct < 0.4f -> "Лёгкий старт — $count ${ru("блюдо", "блюда", "блюд", count)}"
-                pct < 0.9f -> "Двигаешься ровно, $count ${ru("блюдо", "блюда", "блюд", count)}"
-                pct < 1f   -> "Финишная прямая, $count ${ru("блюдо", "блюда", "блюд", count)}"
-                pct < 1.2f -> "В норме, можно тормозить 🌿"
-                else       -> "Сегодня — банкет 🔥"
-            }
             Text(
-                hint,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                hintFor(count, pct),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
                 fontSize = 13.sp,
             )
         }
     }
+}
+
+private fun greeting(): String {
+    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when (h) {
+        in 5..10 -> "ДОБРОЕ УТРО"
+        in 11..16 -> "ДЕНЬ"
+        in 17..21 -> "ВЕЧЕР"
+        else -> "НОЧЬ"
+    }
+}
+
+private fun hintFor(count: Int, pct: Float): String = when {
+    count == 0 -> "Тарелка пуста — самое время кадрировать обед 📸"
+    pct < 0.4f -> "Лёгкий старт, $count ${ru("приём", "приёма", "приёмов", count)} пищи"
+    pct < 0.9f -> "В ритме — двигаешься ровно"
+    pct < 1f   -> "Финишная прямая на сегодня"
+    pct < 1.2f -> "Норма закрыта, можно завершать"
+    else       -> "Сегодня — банкет 🔥"
 }
 
 private fun ru(one: String, few: String, many: String, n: Int): String {
@@ -200,23 +227,70 @@ private fun ru(one: String, few: String, many: String, n: Int): String {
 }
 
 @Composable
+private fun MacroSummaryRow(today: List<FoodEntry>) {
+    val p = today.sumOf { it.proteinG }
+    val f = today.sumOf { it.fatG }
+    val c = today.sumOf { it.carbsG }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        MacroMini("белки", p, Modifier.weight(1f))
+        MacroMini("жиры", f, Modifier.weight(1f))
+        MacroMini("углеводы", c, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun MacroMini(label: String, value: Int, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(vertical = 12.dp, horizontal = 14.dp)) {
+            Text(
+                label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    value.toString(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 22.sp,
+                )
+                Text(
+                    " г",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 3.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyTodayHint() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(22.dp)) {
             Text(
-                "Пока пусто 🍽️",
+                "Здесь будут блюда",
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
-                "Сфоткай тарелку — и Мика-нейронка скажет калории и комментарий.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                "Снимешь тарелку — Qwen Vision соберёт калории и БЖУ, я добавлю в ленту.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
+                lineHeight = 18.sp,
             )
         }
     }
@@ -228,16 +302,17 @@ private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
 fun EntryRow(e: FoodEntry) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            KcalBadge(e.kcal)
+            KcalDot(e.kcal)
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -249,7 +324,7 @@ fun EntryRow(e: FoodEntry) {
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Б ${e.proteinG} · Ж ${e.fatG} · У ${e.carbsG}   ·   ${timeFmt.format(Date(e.timestamp))}",
+                    "${timeFmt.format(Date(e.timestamp))}   ·   Б ${e.proteinG} · Ж ${e.fatG} · У ${e.carbsG}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                 )
@@ -259,24 +334,24 @@ fun EntryRow(e: FoodEntry) {
 }
 
 @Composable
-private fun KcalBadge(kcal: Int) {
+private fun KcalDot(kcal: Int) {
     Box(
         modifier = Modifier
-            .size(56.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.primary),
+            .size(54.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 kcal.toString(),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 fontWeight = FontWeight.Black,
-                fontSize = 18.sp,
+                fontSize = 17.sp,
             )
             Text(
                 "ккал",
-                color = Color.White.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f),
                 fontSize = 9.sp,
             )
         }
