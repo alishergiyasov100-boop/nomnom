@@ -3,31 +3,46 @@ package com.korvus.nomnom
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.NoteAlt
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.NoteAlt
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,6 +53,8 @@ import com.korvus.nomnom.ui.HistoryScreen
 import com.korvus.nomnom.ui.HomeScreen
 import com.korvus.nomnom.ui.SettingsScreen
 import com.korvus.nomnom.ui.theme.NomNomTheme
+import com.korvus.nomnom.ui.theme.VioletDeep
+import com.korvus.nomnom.ui.theme.VioletPrimary
 
 private data class TabSpec(
     val route: String,
@@ -46,10 +63,13 @@ private data class TabSpec(
     val filled: ImageVector,
 )
 
-private val TABS = listOf(
-    TabSpec("home",     "Главная",   Icons.Outlined.Home,     Icons.Rounded.Home),
-    TabSpec("history",  "История",   Icons.Outlined.History,  Icons.Rounded.History),
-    TabSpec("settings", "Настройки", Icons.Outlined.Settings, Icons.Rounded.Settings),
+private val TABS_LEFT = listOf(
+    TabSpec("home",    "Дневник",    Icons.Outlined.NoteAlt, Icons.Rounded.NoteAlt),
+    TabSpec("history", "Статистика", Icons.Outlined.BarChart, Icons.Rounded.BarChart),
+)
+private val TABS_RIGHT = listOf(
+    TabSpec("recipes",  "Рецепты", Icons.Outlined.MenuBook, Icons.Rounded.MenuBook),
+    TabSpec("settings", "Профиль", Icons.Outlined.PersonOutline, Icons.Rounded.Person),
 )
 
 class MainActivity : ComponentActivity() {
@@ -70,48 +90,26 @@ private fun Root() {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    val showTabs = currentRoute in TABS.map { it.route }
+    val mainRoutes = (TABS_LEFT + TABS_RIGHT).map { it.route }
+    val showTabs = currentRoute in mainRoutes
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (showTabs) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp,
-                ) {
-                    TABS.forEach { tab ->
-                        val selected = currentRoute == tab.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                if (!selected) {
-                                    nav.navigate(tab.route) {
-                                        popUpTo(nav.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    if (selected) tab.filled else tab.outlined,
-                                    contentDescription = tab.label,
-                                )
-                            },
-                            label = { Text(tab.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        )
-                    }
-                }
+                BottomNavBar(
+                    currentRoute = currentRoute,
+                    onTabClick = { route ->
+                        if (currentRoute != route) {
+                            nav.navigate(route) {
+                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                    onCaptureClick = { nav.navigate("capture") }
+                )
             }
         },
     ) { padding ->
@@ -122,8 +120,119 @@ private fun Root() {
         ) {
             composable("home")     { HomeScreen(onCapture = { nav.navigate("capture") }) }
             composable("history")  { HistoryScreen() }
+            composable("recipes")  { StubScreen("Рецепты", "Скоро") }
             composable("settings") { SettingsScreen() }
             composable("capture")  { CaptureFlowScreen(onBack = { nav.popBackStack() }) }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavBar(
+    currentRoute: String?,
+    onTabClick: (String) -> Unit,
+    onCaptureClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .height(78.dp),
+    ) {
+        // Тонкая верхняя полоска-разделитель
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+        )
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TABS_LEFT.forEach { t ->
+                NavItem(
+                    spec = t,
+                    selected = currentRoute == t.route,
+                    onClick = { onTabClick(t.route) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            // место под центральную круглую кнопку (она поверх)
+            Spacer(Modifier.weight(1f))
+            TABS_RIGHT.forEach { t ->
+                NavItem(
+                    spec = t,
+                    selected = currentRoute == t.route,
+                    onClick = { onTabClick(t.route) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        // Центральная фиолетовая FAB-кнопка
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 4.dp)
+                .size(56.dp)
+                .shadow(elevation = 8.dp, shape = RoundedCornerShape(50), clip = false)
+                .clip(RoundedCornerShape(50))
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(VioletPrimary, VioletDeep)
+                    )
+                )
+                .clickable(onClick = onCaptureClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Rounded.Add,
+                contentDescription = "добавить блюдо",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavItem(
+    spec: TabSpec,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tint = if (selected) VioletPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            if (selected) spec.filled else spec.outlined,
+            contentDescription = spec.label,
+            tint = tint,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            spec.label,
+            color = tint,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun StubScreen(title: String, hint: String) {
+    Box(modifier = Modifier.fillMaxSize().padding(40.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, fontWeight = FontWeight.Black, fontSize = 22.sp, color = MaterialTheme.colorScheme.onBackground)
+            Spacer(Modifier.height(6.dp))
+            Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
         }
     }
 }

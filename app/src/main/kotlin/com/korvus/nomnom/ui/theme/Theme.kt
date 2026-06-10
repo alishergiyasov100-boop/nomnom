@@ -13,77 +13,77 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightScheme = lightColorScheme(
-    primary = ForestPrimary,
+    primary = VioletPrimary,
     onPrimary = White,
-    primaryContainer = MintTint,
-    onPrimaryContainer = MintOn,
+    primaryContainer = VioletPale,
+    onPrimaryContainer = VioletDeep,
 
-    secondary = FatButter,
+    secondary = PeachText,
     onSecondary = White,
-    secondaryContainer = FatTint,
-    onSecondaryContainer = Color(0xFF332300),
+    secondaryContainer = PeachBg,
+    onSecondaryContainer = Color(0xFF3A1F00),
 
-    tertiary = ProteinCoral,
+    tertiary = PinkRoseText,
     onTertiary = White,
-    tertiaryContainer = ProteinTint,
-    onTertiaryContainer = Color(0xFF3E1109),
+    tertiaryContainer = PinkRoseBg,
+    onTertiaryContainer = Color(0xFF50111D),
 
     background = White,
-    onBackground = Charcoal,
+    onBackground = Ink,
 
     surface = White,
-    onSurface = Charcoal,
+    onSurface = Ink,
     surfaceVariant = Cloud,
     onSurfaceVariant = MutedText,
 
     outline = Hairline,
-    outlineVariant = Color(0xFFEDEDEA),
+    outlineVariant = Color(0xFFF6F5FB),
 
     error = CrimsonError,
     onError = White,
-    errorContainer = Color(0xFFF9DEDC),
-    onErrorContainer = Color(0xFF410E0B),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
 
     scrim = Color(0xFF000000),
-    inverseSurface = Charcoal,
+    inverseSurface = Ink,
     inverseOnSurface = White,
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = MintPrimaryDark,
-    onPrimary = InkBg,
-    primaryContainer = MintContDark,
-    onPrimaryContainer = Color(0xFFCDE7D8),
+    primary = VioletPrimaryDark,
+    onPrimary = Color(0xFF1A0F35),
+    primaryContainer = Color(0xFF3F2A8A),
+    onPrimaryContainer = Color(0xFFE4DAFF),
 
-    secondary = Color(0xFFE5C481),
-    onSecondary = InkBg,
-    secondaryContainer = Color(0xFF4A3818),
-    onSecondaryContainer = Color(0xFFF6E1B5),
+    secondary = Color(0xFFFFB078),
+    onSecondary = Color(0xFF3A1F00),
+    secondaryContainer = Color(0xFF5E3818),
+    onSecondaryContainer = Color(0xFFFFE0C8),
 
-    tertiary = Color(0xFFFF9F87),
-    onTertiary = InkBg,
-    tertiaryContainer = Color(0xFF5C291D),
-    onTertiaryContainer = Color(0xFFFFD7CB),
+    tertiary = Color(0xFFFFA8C0),
+    onTertiary = Color(0xFF50111D),
+    tertiaryContainer = Color(0xFF7A2238),
+    onTertiaryContainer = Color(0xFFFFDCE5),
 
-    background = InkBg,
-    onBackground = CreamOn,
+    background = DarkBg,
+    onBackground = DarkOn,
 
-    surface = InkSurface,
-    onSurface = CreamOn,
-    surfaceVariant = InkSurfaceVar,
-    onSurfaceVariant = MutedTextDark,
+    surface = DarkSurface,
+    onSurface = DarkOn,
+    surfaceVariant = DarkSurfaceVar,
+    onSurfaceVariant = DarkMuted,
 
-    outline = Color(0xFF2E3431),
-    outlineVariant = Color(0xFF1F2421),
+    outline = Color(0xFF3D3956),
+    outlineVariant = Color(0xFF2A283E),
 
-    error = Color(0xFFF2B8B5),
-    onError = Color(0xFF601410),
-    errorContainer = Color(0xFF8C1D18),
-    onErrorContainer = Color(0xFFF9DEDC),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
 
     scrim = Color.Black,
-    inverseSurface = CreamOn,
-    inverseOnSurface = InkBg,
+    inverseSurface = DarkOn,
+    inverseOnSurface = DarkBg,
 )
 
 @Composable
