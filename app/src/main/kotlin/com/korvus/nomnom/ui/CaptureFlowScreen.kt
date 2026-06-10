@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,7 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -48,7 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,12 +57,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.korvus.nomnom.NomNomApp
 import com.korvus.nomnom.api.VisionAnalyzer
 import com.korvus.nomnom.data.AnalysisResult
 import com.korvus.nomnom.data.FoodEntry
+import com.korvus.nomnom.ui.theme.CarbMint
+import com.korvus.nomnom.ui.theme.FatButter
+import com.korvus.nomnom.ui.theme.ProteinCoral
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,7 +80,7 @@ private sealed class FlowState {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CaptureFlowScreen(nav: NavController) {
+fun CaptureFlowScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     val app = NomNomApp.instance
 
@@ -138,59 +140,53 @@ fun CaptureFlowScreen(nav: NavController) {
     }
 
     when (val s = state) {
-        FlowState.Idle -> IdleScreen(nav, onCamera = ::startCamera) {
-            galleryLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
-        }
-        is FlowState.Loading -> ImageWithSheet(
-            uri = s.uri,
-            onBack = { nav.popBackStack() },
-            sheet = { LoadingSheet() }
-        )
-        is FlowState.Ready -> ImageWithSheet(
-            uri = s.uri,
-            onBack = { nav.popBackStack() },
-            sheet = {
-                ResultSheet(
-                    result = s.result,
-                    onSave = {
-                        app.appScope.launch {
-                            val img = saveImage(ctx, s.uri)
-                            app.dayLog.add(
-                                FoodEntry(
-                                    id = UUID.randomUUID().toString(),
-                                    timestamp = System.currentTimeMillis(),
-                                    dish = s.result.dish,
-                                    kcal = s.result.kcal,
-                                    proteinG = s.result.proteinG,
-                                    fatG = s.result.fatG,
-                                    carbsG = s.result.carbsG,
-                                    comment = s.result.comment,
-                                    confidence = s.result.confidence,
-                                    imagePath = img,
-                                )
-                            )
-                            nav.popBackStack()
-                        }
-                    },
-                    onRetry = { state = FlowState.Idle }
+        FlowState.Idle -> IdleScreen(
+            onBack = onBack,
+            onCamera = ::startCamera,
+            onGallery = {
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             }
         )
-        is FlowState.Error -> ImageWithSheet(
-            uri = s.uri,
-            onBack = { nav.popBackStack() },
-            sheet = { ErrorSheet(s.msg) { state = FlowState.Idle } }
-        )
+        is FlowState.Loading -> PhotoBackdrop(s.uri, onBack) { LoadingSheet() }
+        is FlowState.Ready -> PhotoBackdrop(s.uri, onBack) {
+            ResultSheet(
+                result = s.result,
+                onSave = {
+                    app.appScope.launch {
+                        val img = saveImage(ctx, s.uri)
+                        app.dayLog.add(
+                            FoodEntry(
+                                id = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                dish = s.result.dish,
+                                kcal = s.result.kcal,
+                                proteinG = s.result.proteinG,
+                                fatG = s.result.fatG,
+                                carbsG = s.result.carbsG,
+                                comment = s.result.comment,
+                                confidence = s.result.confidence,
+                                imagePath = img,
+                            )
+                        )
+                        onBack()
+                    }
+                },
+                onRetry = { state = FlowState.Idle }
+            )
+        }
+        is FlowState.Error -> PhotoBackdrop(s.uri, onBack) {
+            ErrorSheet(s.msg) { state = FlowState.Idle }
+        }
     }
 }
 
-/* ── IDLE: чистый экран с двумя крупными action-картами ── */
+/* ─── Idle: чисто две action-плитки ─── */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun IdleScreen(
-    nav: NavController,
+    onBack: () -> Unit,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
 ) {
@@ -199,7 +195,7 @@ private fun IdleScreen(
             TopAppBar(
                 title = { Text("Новое блюдо", fontWeight = FontWeight.SemiBold, fontSize = 18.sp) },
                 navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "назад")
                     }
                 },
@@ -214,17 +210,18 @@ private fun IdleScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 "Сними тарелку",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Black,
+                fontSize = 28.sp,
+                lineHeight = 32.sp,
             )
             Text(
-                "Чем крупнее план и ярче свет — тем точнее ккал.",
+                "Крупный план + хороший свет = точные ккал.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -232,15 +229,15 @@ private fun IdleScreen(
             Spacer(Modifier.height(8.dp))
             ActionTile(
                 icon = Icons.Default.PhotoCamera,
-                title = "Камера",
-                subtitle = "Снять прямо сейчас",
+                title = "Сделать фото",
+                subtitle = "Открыть камеру",
                 primary = true,
                 onClick = onCamera,
             )
             ActionTile(
                 icon = Icons.Default.PhotoLibrary,
-                title = "Галерея",
-                subtitle = "Выбрать готовое фото",
+                title = "Из галереи",
+                subtitle = "Выбрать готовое",
                 primary = false,
                 onClick = onGallery,
             )
@@ -250,7 +247,7 @@ private fun IdleScreen(
 
 @Composable
 private fun ActionTile(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     primary: Boolean,
@@ -258,7 +255,7 @@ private fun ActionTile(
 ) {
     val container = if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     val content = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
-    val subtle = if (primary) content.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val subtle = if (primary) content.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -274,7 +271,7 @@ private fun ActionTile(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(content.copy(alpha = if (primary) 0.18f else 0.06f)),
+                    .background(content.copy(alpha = if (primary) 0.18f else 0.08f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, contentDescription = null, tint = content) }
             Spacer(Modifier.width(16.dp))
@@ -287,19 +284,19 @@ private fun ActionTile(
     }
 }
 
-/* ── Universal screen: large hero photo + bottom sheet ── */
+/* ─── Full-bleed фото + bottom-sheet ─── */
 @Composable
-private fun ImageWithSheet(
-    uri: Uri,
-    onBack: () -> Unit,
-    sheet: @Composable () -> Unit,
-) {
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // hero фото — edge-to-edge, верхняя половина экрана
+private fun PhotoBackdrop(uri: Uri, onBack: () -> Unit, sheet: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // фото на верхние ~58% экрана
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(4f / 5f)
+                .fillMaxSize(0.62f)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             AsyncImage(
@@ -308,18 +305,18 @@ private fun ImageWithSheet(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
-            // лёгкий градиент-фейд от низа к фото (читаемость)
+            // плавный градиент к низу для перехода к sheet
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            0.7f to Color.Transparent,
-                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.55f),
+                        Brush.verticalGradient(
+                            0.75f to Color.Transparent,
+                            1f to MaterialTheme.colorScheme.background,
                         )
                     )
             )
-            // back-кнопка поверх фото в стеклянной таблетке
+            // back-кнопка в glass-pill
             IconButton(
                 onClick = onBack,
                 modifier = Modifier
@@ -336,59 +333,51 @@ private fun ImageWithSheet(
             }
         }
 
-        // bottom sheet, выезжает поверх фото на 24dp
-        Box(
+        // bottom panel — overlaps фото, контент скроллится если много
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 0.dp),
-            contentAlignment = Alignment.BottomCenter,
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .fillMaxSize(0.5f)
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .width(36.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    sheet()
-                }
-            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.outline)
+            )
+            Spacer(Modifier.height(14.dp))
+            sheet()
         }
     }
 }
 
 @Composable
 private fun LoadingSheet() {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 30.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(22.dp),
-                strokeWidth = 2.5.dp,
-                color = MaterialTheme.colorScheme.primary,
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 24.dp)) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(22.dp),
+            strokeWidth = 2.5.dp,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(
+                "Анализирую…",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 17.sp,
             )
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    "Анализирую блюдо…",
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 16.sp,
-                )
-                Text(
-                    "Qwen Vision считает калории и БЖУ",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                )
-            }
+            Text(
+                "Qwen Vision считает калории",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+            )
         }
     }
 }
@@ -399,98 +388,101 @@ private fun ResultSheet(
     onSave: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Text(
+        result.dish,
+        color = MaterialTheme.colorScheme.onBackground,
+        fontWeight = FontWeight.Black,
+        fontSize = 24.sp,
+        lineHeight = 28.sp,
+        maxLines = 2,
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.Bottom) {
         Text(
-            result.dish,
+            result.kcal.toString(),
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Black,
-            fontSize = 26.sp,
-            color = MaterialTheme.colorScheme.onBackground,
-            lineHeight = 30.sp,
+            fontSize = 52.sp,
+            lineHeight = 54.sp,
         )
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                result.kcal.toString(),
-                fontWeight = FontWeight.Black,
-                fontSize = 56.sp,
-                color = MaterialTheme.colorScheme.primary,
-                lineHeight = 58.sp,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "ккал",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 10.dp),
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MacroChip("белки", result.proteinG, Modifier.weight(1f))
-            MacroChip("жиры", result.fatG, Modifier.weight(1f))
-            MacroChip("углеводы", result.carbsG, Modifier.weight(1f))
-        }
-        if (result.comment.isNotBlank()) {
-            Spacer(Modifier.height(16.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "ОТ ШЕФА",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        result.comment,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    )
-                }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "ккал",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 16.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+    }
+    Spacer(Modifier.height(14.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SheetMacroChip("Б", result.proteinG, ProteinCoral, Modifier.weight(1f))
+        SheetMacroChip("Ж", result.fatG, FatButter, Modifier.weight(1f))
+        SheetMacroChip("У", result.carbsG, CarbMint, Modifier.weight(1f))
+    }
+    if (result.comment.isNotBlank()) {
+        Spacer(Modifier.height(14.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    "ОТ ШЕФА",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    result.comment,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 14.sp,
+                    lineHeight = 19.sp,
+                )
             }
         }
-        Spacer(Modifier.height(20.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(
-                onClick = onRetry,
-                modifier = Modifier.weight(1f).height(54.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) { Text("Ещё раз", fontWeight = FontWeight.SemiBold) }
-            Button(
-                onClick = onSave,
-                modifier = Modifier.weight(1.4f).height(54.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            ) { Text("В дневник", fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
-        }
-        Spacer(Modifier.height(6.dp))
+    }
+    Spacer(Modifier.height(14.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedButton(
+            onClick = onRetry,
+            modifier = Modifier.weight(1f).height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) { Text("Ещё раз", fontWeight = FontWeight.SemiBold) }
+        Button(
+            onClick = onSave,
+            modifier = Modifier.weight(1.4f).height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) { Text("В дневник", fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
     }
 }
 
 @Composable
-private fun MacroChip(label: String, value: Int, modifier: Modifier = Modifier) {
+private fun SheetMacroChip(label: String, value: Int, color: Color, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(color.copy(alpha = 0.14f))
             .padding(vertical = 10.dp, horizontal = 12.dp),
     ) {
-        Text(
-            label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(color))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp,
+            )
+        }
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
@@ -511,31 +503,29 @@ private fun MacroChip(label: String, value: Int, modifier: Modifier = Modifier) 
 
 @Composable
 private fun ErrorSheet(msg: String, onRetry: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Не получилось распознать",
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.error,
-            fontSize = 18.sp,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            msg,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            fontSize = 13.sp,
-            lineHeight = 18.sp,
-        )
-        Spacer(Modifier.height(18.dp))
-        Button(
-            onClick = onRetry,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) { Text("Попробовать снова", fontWeight = FontWeight.SemiBold) }
-    }
+    Text(
+        "Не получилось распознать",
+        color = MaterialTheme.colorScheme.error,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        msg,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+    )
+    Spacer(Modifier.height(16.dp))
+    Button(
+        onClick = onRetry,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+    ) { Text("Попробовать снова", fontWeight = FontWeight.SemiBold) }
 }
 
 private fun createCameraOutputUri(ctx: Context): Uri {

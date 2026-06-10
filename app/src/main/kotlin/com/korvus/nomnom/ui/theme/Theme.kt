@@ -15,23 +15,25 @@ import androidx.core.view.WindowCompat
 private val LightScheme = lightColorScheme(
     primary = ForestPrimary,
     onPrimary = White,
-    primaryContainer = MintContainer,
+    primaryContainer = MintTint,
     onPrimaryContainer = MintOn,
 
-    secondary = OliveSecondary,
+    secondary = FatButter,
     onSecondary = White,
-    secondaryContainer = OliveContainer,
-    onSecondaryContainer = Color(0xFF1F2D11),
+    secondaryContainer = FatTint,
+    onSecondaryContainer = Color(0xFF332300),
 
-    tertiary = GoldenAccent,
-    onTertiary = Color(0xFF2A1F00),
+    tertiary = ProteinCoral,
+    onTertiary = White,
+    tertiaryContainer = ProteinTint,
+    onTertiaryContainer = Color(0xFF3E1109),
 
     background = White,
     onBackground = Charcoal,
 
     surface = White,
     onSurface = Charcoal,
-    surfaceVariant = OffWhite,
+    surfaceVariant = Cloud,
     onSurfaceVariant = MutedText,
 
     outline = Hairline,
@@ -39,7 +41,7 @@ private val LightScheme = lightColorScheme(
 
     error = CrimsonError,
     onError = White,
-    errorContainer = RoseErrorContainer,
+    errorContainer = Color(0xFFF9DEDC),
     onErrorContainer = Color(0xFF410E0B),
 
     scrim = Color(0xFF000000),
@@ -49,17 +51,19 @@ private val LightScheme = lightColorScheme(
 
 private val DarkScheme = darkColorScheme(
     primary = MintPrimaryDark,
-    onPrimary = Color(0xFF0E1410),
-    primaryContainer = ForestContDark,
-    onPrimaryContainer = Color(0xFFC8E6D5),
+    onPrimary = InkBg,
+    primaryContainer = MintContDark,
+    onPrimaryContainer = Color(0xFFCDE7D8),
 
-    secondary = Color(0xFFAFC79B),
-    onSecondary = Color(0xFF0E1410),
-    secondaryContainer = Color(0xFF2D3D24),
-    onSecondaryContainer = Color(0xFFD7E5C8),
+    secondary = Color(0xFFE5C481),
+    onSecondary = InkBg,
+    secondaryContainer = Color(0xFF4A3818),
+    onSecondaryContainer = Color(0xFFF6E1B5),
 
-    tertiary = GoldenAccent,
-    onTertiary = Color(0xFF2A1F00),
+    tertiary = Color(0xFFFF9F87),
+    onTertiary = InkBg,
+    tertiaryContainer = Color(0xFF5C291D),
+    onTertiaryContainer = Color(0xFFFFD7CB),
 
     background = InkBg,
     onBackground = CreamOn,
@@ -69,8 +73,8 @@ private val DarkScheme = darkColorScheme(
     surfaceVariant = InkSurfaceVar,
     onSurfaceVariant = MutedTextDark,
 
-    outline = Color(0xFF2E3A33),
-    outlineVariant = Color(0xFF1F2820),
+    outline = Color(0xFF2E3431),
+    outlineVariant = Color(0xFF1F2421),
 
     error = Color(0xFFF2B8B5),
     onError = Color(0xFF601410),

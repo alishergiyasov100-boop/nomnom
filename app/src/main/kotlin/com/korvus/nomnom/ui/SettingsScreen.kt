@@ -8,16 +8,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,7 +25,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,14 +35,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import com.korvus.nomnom.NomNomApp
 import com.korvus.nomnom.data.Settings
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(nav: NavController) {
+fun SettingsScreen() {
     val app = NomNomApp.instance
     val scope = rememberCoroutineScope()
 
@@ -65,11 +63,13 @@ fun SettingsScreen(nav: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Настройки", fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "назад")
-                    }
+                title = {
+                    Text(
+                        "Настройки",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 22.sp,
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -83,54 +83,21 @@ fun SettingsScreen(nav: NavController) {
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(horizontal = 20.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                "Vision-API",
-                color = MaterialTheme.colorScheme.secondary,
-                fontWeight = FontWeight.SemiBold,
-            )
-
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                label = { Text("Base URL (OpenAI-compat)") },
-                placeholder = { Text(Settings.DEFAULT_BASE_URL) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = model,
-                onValueChange = { model = it },
-                label = { Text("Модель") },
-                placeholder = { Text(Settings.DEFAULT_MODEL) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API key (если нужен)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Цель",
-                color = MaterialTheme.colorScheme.secondary,
-                fontWeight = FontWeight.SemiBold,
-            )
-            OutlinedTextField(
-                value = target,
-                onValueChange = { target = it.filter(Char::isDigit) },
-                label = { Text("ккал в день") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(4.dp))
+            SectionCard(
+                title = "Vision API",
+                hint = "Куда отправлять фото блюд для оценки калорий."
+            ) {
+                FieldOutlined("Base URL", baseUrl, Settings.DEFAULT_BASE_URL) { baseUrl = it }
+                FieldOutlined("Модель", model, Settings.DEFAULT_MODEL) { model = it }
+                FieldOutlined("API ключ (если нужен)", apiKey, "") { apiKey = it }
+            }
+            SectionCard(title = "Цель", hint = "Ежедневная норма калорий — для прогресс-кольца.") {
+                FieldOutlined("ккал в день", target, "2000") { target = it.filter(Char::isDigit) }
+            }
+            Spacer(Modifier.height(2.dp))
             Button(
                 onClick = {
                     scope.launch {
@@ -138,25 +105,75 @@ fun SettingsScreen(nav: NavController) {
                         app.settings.setModel(model.trim())
                         app.settings.setApiKey(apiKey.trim())
                         app.settings.setDailyTarget(target.toIntOrNull() ?: 2000)
-                        nav.popBackStack()
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
-            ) { Text("Сохранить", fontWeight = FontWeight.SemiBold) }
-
-            TextButton(onClick = {
-                scope.launch { app.dayLog.clearAll() }
-            }) {
+            ) { Text("Сохранить", fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+            TextButton(
+                onClick = { scope.launch { app.dayLog.clearAll() } },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(
                     "Очистить всю историю",
-                    color = MaterialTheme.colorScheme.tertiary,
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 13.sp,
                 )
             }
+            Spacer(Modifier.height(20.dp))
         }
     }
+}
+
+@Composable
+private fun SectionCard(title: String, hint: String, content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                title,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+            )
+            Text(
+                hint,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+            )
+            Spacer(Modifier.height(2.dp))
+            content()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FieldOutlined(
+    label: String,
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = { Text(placeholder, fontSize = 13.sp) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.background,
+            unfocusedContainerColor = MaterialTheme.colorScheme.background,
+        ),
+    )
 }

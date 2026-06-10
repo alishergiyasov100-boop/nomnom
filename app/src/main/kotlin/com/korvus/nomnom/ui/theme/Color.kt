@@ -2,28 +2,35 @@ package com.korvus.nomnom.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ─── Clean food-app: white + forest sage green ───
-val White              = Color(0xFFFFFFFF)
-val OffWhite           = Color(0xFFF7F7F5)   // tonal surface
-val SurfaceMuted       = Color(0xFFEFEFEC)   // chips / variant
-val ForestPrimary      = Color(0xFF2D6E47)   // forest sage — главный
-val ForestDeep         = Color(0xFF1F4E33)   // pressed
-val MintContainer      = Color(0xFFDCEDE3)   // soft mint card
-val MintOn             = Color(0xFF0F3320)
-val OliveSecondary     = Color(0xFF4C6B3A)
-val OliveContainer     = Color(0xFFE3EDD6)
-val GoldenAccent       = Color(0xFFD4A24C)   // для калорий-цифр / акцент
-val Charcoal           = Color(0xFF0F0F0F)   // основной текст
-val MutedText          = Color(0xFF6B7280)
-val Hairline           = Color(0xFFE5E5E2)
-val CrimsonError       = Color(0xFFB3261E)
-val RoseErrorContainer = Color(0xFFF9DEDC)
+// ─── Base: white + forest sage green ───
+val White            = Color(0xFFFFFFFF)
+val Snow             = Color(0xFFFAFAF8)
+val Cloud            = Color(0xFFF3F3F0)
+val Hairline         = Color(0xFFE7E7E3)
+val Charcoal         = Color(0xFF0E0E0E)
+val Ink              = Color(0xFF1F1F1F)
+val MutedText        = Color(0xFF7E7E78)
 
-// ─── dark mode: deep green + mint accents ───
-val InkBg            = Color(0xFF0E1410)
-val InkSurface       = Color(0xFF161D18)
-val InkSurfaceVar    = Color(0xFF1E2620)
-val MintPrimaryDark  = Color(0xFF7BC59C)
-val ForestContDark   = Color(0xFF2A4A38)
+val ForestPrimary    = Color(0xFF2E7048)
+val ForestDeep       = Color(0xFF1F4E33)
+val MintTint         = Color(0xFFE6F2EB)
+val MintOn           = Color(0xFF0F3320)
+
+// ─── Macro pastel ring colors ───
+val ProteinCoral     = Color(0xFFFF7E66)
+val ProteinTint      = Color(0xFFFFE3DC)
+val FatButter        = Color(0xFFE0A02E)
+val FatTint          = Color(0xFFFFF1D2)
+val CarbMint         = Color(0xFF4FB37C)
+val CarbTint         = Color(0xFFDEEFE4)
+
+val CrimsonError     = Color(0xFFB3261E)
+
+// ─── dark ───
+val InkBg            = Color(0xFF0D0F0E)
+val InkSurface       = Color(0xFF161918)
+val InkSurfaceVar    = Color(0xFF1F2421)
+val MintPrimaryDark  = Color(0xFF7DC8A0)
+val MintContDark     = Color(0xFF234C36)
 val CreamOn          = Color(0xFFE9ECE8)
-val MutedTextDark    = Color(0xFF94A29B)
+val MutedTextDark    = Color(0xFF8E948F)
