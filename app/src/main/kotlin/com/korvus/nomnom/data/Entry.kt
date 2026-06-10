@@ -14,6 +14,7 @@ data class FoodEntry(
     val comment: String = "",
     val confidence: String = "medium",
     val imagePath: String? = null,  // local cached image
+    val meal: String? = null,       // Завтрак / Обед / Ужин / Перекус; null = авто по часу
 )
 
 @Serializable

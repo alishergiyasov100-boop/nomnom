@@ -15,6 +15,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -212,7 +215,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                 padding = padding,
                 uri = s.uri,
                 result = s.result,
-                onSave = {
+                onSave = { meal ->
                     app.appScope.launch {
                         val img = saveImage(ctx, s.uri)
                         app.dayLog.add(
@@ -227,6 +230,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                                 comment = s.result.comment,
                                 confidence = s.result.confidence,
                                 imagePath = img,
+                                meal = meal,
                             )
                         )
                         onBack()
@@ -375,9 +379,10 @@ private fun ResultBody(
     padding: androidx.compose.foundation.layout.PaddingValues,
     uri: Uri,
     result: AnalysisResult,
-    onSave: () -> Unit,
+    onSave: (String) -> Unit,
     onRetry: () -> Unit,
 ) {
+    var selectedMeal by remember { mutableStateOf(currentMeal()) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -385,7 +390,6 @@ private fun ResultBody(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
-        // "Добавить в [Обед v]" — pill
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Добавить в",
@@ -394,7 +398,7 @@ private fun ResultBody(
                 fontSize = 16.sp,
             )
             Spacer(Modifier.weight(1f))
-            MealPill(currentMeal())
+            MealDropdown(selected = selectedMeal, onSelect = { selectedMeal = it })
         }
         Spacer(Modifier.height(14.dp))
         // Hero: фото слева 96dp + блок справа (ккал + 3 пилюли)
@@ -458,7 +462,7 @@ private fun ResultBody(
         }
         Spacer(Modifier.height(24.dp))
         Button(
-            onClick = onSave,
+            onClick = { onSave(selectedMeal) },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(
@@ -494,19 +498,38 @@ private fun MacroLine(label: String, value: String, bg: Color, fg: Color) {
 }
 
 @Composable
-private fun MealPill(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(VioletPale)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        Text(
-            "🍴  $text",
-            color = VioletDeep,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+private fun MealDropdown(selected: String, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf("Завтрак", "Обед", "Ужин", "Перекус")
+    Box {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(VioletPale)
+                .clickable { expanded = true }
+                .padding(horizontal = 14.dp, vertical = 8.dp)
+        ) {
+            Text(
+                "🍴  $selected  ▾",
+                color = VioletDeep,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = {
+                        onSelect(opt)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -515,8 +538,7 @@ private fun currentMeal(): String {
     return when (h) {
         in 5..10 -> "Завтрак"
         in 11..15 -> "Обед"
-        in 16..21 -> "Ужин"
-        else -> "Перекус"
+        else -> "Ужин"  // 16-23 + 0-4 (поздний ужин по умолчанию)
     }
 }
 

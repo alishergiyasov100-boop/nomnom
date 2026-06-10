@@ -364,15 +364,16 @@ private data class MealBucket(
     val pillTime: String?,
 )
 
-private fun mealOf(ts: Long): String {
+private fun mealByHour(ts: Long): String {
     val h = Calendar.getInstance().apply { timeInMillis = ts }.get(Calendar.HOUR_OF_DAY)
     return when (h) {
         in 5..10 -> "Завтрак"
         in 11..15 -> "Обед"
-        in 16..21 -> "Ужин"
-        else -> "Перекус"
+        else -> "Ужин"  // 16-23 + 0-4 (поздний ужин)
     }
 }
+
+private fun mealOf(e: FoodEntry): String = e.meal ?: mealByHour(e.timestamp)
 
 private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
 
@@ -383,7 +384,7 @@ private fun groupByMeal(today: List<FoodEntry>): List<MealBucket> {
         "Ужин" to "🍝",
         "Перекус" to "🍎",
     )
-    val grouped = today.groupBy { mealOf(it.timestamp) }
+    val grouped = today.groupBy { mealOf(it) }
     return listOf("Завтрак", "Обед", "Ужин", "Перекус").map { name ->
         val items = grouped[name].orEmpty().sortedByDescending { it.timestamp }
         MealBucket(

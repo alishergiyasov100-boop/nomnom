@@ -18,12 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
-import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.NoteAlt
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.NoteAlt
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
@@ -49,6 +49,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.korvus.nomnom.ui.CaptureFlowScreen
+import com.korvus.nomnom.ui.ChefChatScreen
 import com.korvus.nomnom.ui.HistoryScreen
 import com.korvus.nomnom.ui.HomeScreen
 import com.korvus.nomnom.ui.SettingsScreen
@@ -68,7 +69,7 @@ private val TABS_LEFT = listOf(
     TabSpec("history", "Статистика", Icons.Outlined.BarChart, Icons.Rounded.BarChart),
 )
 private val TABS_RIGHT = listOf(
-    TabSpec("recipes",  "Рецепты", Icons.Outlined.MenuBook, Icons.Rounded.MenuBook),
+    TabSpec("chef",     "Шеф", Icons.Outlined.ChatBubbleOutline, Icons.Rounded.ChatBubble),
     TabSpec("settings", "Профиль", Icons.Outlined.PersonOutline, Icons.Rounded.Person),
 )
 
@@ -120,7 +121,7 @@ private fun Root() {
         ) {
             composable("home")     { HomeScreen(onCapture = { nav.navigate("capture") }) }
             composable("history")  { HistoryScreen() }
-            composable("recipes")  { StubScreen("Рецепты", "Скоро") }
+            composable("chef")     { ChefChatScreen() }
             composable("settings") { SettingsScreen() }
             composable("capture")  { CaptureFlowScreen(onBack = { nav.popBackStack() }) }
         }
@@ -226,13 +227,3 @@ private fun NavItem(
     }
 }
 
-@Composable
-private fun StubScreen(title: String, hint: String) {
-    Box(modifier = Modifier.fillMaxSize().padding(40.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(title, fontWeight = FontWeight.Black, fontSize = 22.sp, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(6.dp))
-            Text(hint, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-        }
-    }
-}
