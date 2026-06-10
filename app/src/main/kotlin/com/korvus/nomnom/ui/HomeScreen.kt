@@ -59,6 +59,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +94,14 @@ fun HomeScreen(onCapture: () -> Unit) {
                     fat = f, fatTarget = fTarget,
                     carbs = c, carbsTarget = cTarget,
                 )
+            }
+            if (today.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(14.dp))
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        WeightProjectionCard(todayKcal = todayKcal, target = target)
+                    }
+                }
             }
             item {
                 Spacer(Modifier.height(16.dp))
@@ -284,6 +293,62 @@ private fun HeroMacro(label: String, value: Int, target: Int, modifier: Modifier
         )
     }
 }
+
+/* ── Прогноз веса: экстраполяция текущего темпа на 30 дней ── */
+
+@Composable
+private fun WeightProjectionCard(todayKcal: Int, target: Int) {
+    val cal = Calendar.getInstance()
+    val hoursPassed = (cal.get(Calendar.HOUR_OF_DAY) + cal.get(Calendar.MINUTE) / 60.0)
+        .coerceAtLeast(0.75)
+    val projectedDaily = (todayKcal / hoursPassed * 24.0).toInt()
+    val delta = projectedDaily - target
+    val kg = abs(delta) * 30.0 / 7700.0
+    val kgStr = String.format(Locale.US, "%.1f", kg).replace('.', ',')
+
+    val (bg, accent, emoji, text) = when {
+        delta > 150 -> Quad(
+            Color(0xFFFFE4E4),
+            Color(0xFFD64545),
+            "⚠️",
+            "Такими темпами вы потолстеете на $kgStr кг за 30 дней",
+        )
+        delta < -150 -> Quad(
+            Color(0xFFDFF5E5),
+            Color(0xFF2E8B57),
+            "🔥",
+            "Такими темпами вы похудеете на $kgStr кг за 30 дней",
+        )
+        else -> Quad(
+            VioletPillBg,
+            VioletDeep,
+            "⚖️",
+            "Идёте ровно — вес сохранится",
+        )
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(emoji, fontSize = 22.sp)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text,
+            color = accent,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+private data class Quad(val bg: Color, val accent: Color, val emoji: String, val text: String)
 
 private fun todayLabel(): String {
     val fmt = SimpleDateFormat("d MMMM", Locale("ru"))
