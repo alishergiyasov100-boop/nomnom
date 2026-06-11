@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onReminders: () -> Unit = {}) {
     val app = NomNomApp.instance
     val scope = rememberCoroutineScope()
 
@@ -131,6 +131,34 @@ fun SettingsScreen() {
             }
             SectionCard(title = "Цель", hint = "Ежедневная норма калорий — для прогресс-кольца.") {
                 FieldOutlined("ккал в день", target, "2000") { target = it.filter(Char::isDigit) }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(onClick = onReminders)
+                    .padding(18.dp),
+            ) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("🔔", fontSize = 22.sp)
+                    Spacer(Modifier.height(0.dp))
+                    androidx.compose.foundation.layout.Spacer(Modifier.size(14.dp))
+                    androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Напоминания",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                        )
+                        Text(
+                            "Попить, покушать, перекусить — на твоё время.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
             }
             Spacer(Modifier.height(2.dp))
             Button(

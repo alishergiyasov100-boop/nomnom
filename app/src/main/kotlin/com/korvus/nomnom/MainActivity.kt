@@ -52,6 +52,7 @@ import com.korvus.nomnom.ui.CaptureFlowScreen
 import com.korvus.nomnom.ui.ChefChatScreen
 import com.korvus.nomnom.ui.HistoryScreen
 import com.korvus.nomnom.ui.HomeScreen
+import com.korvus.nomnom.ui.RemindersScreen
 import com.korvus.nomnom.ui.SettingsScreen
 import com.korvus.nomnom.ui.theme.NomNomTheme
 import com.korvus.nomnom.ui.theme.VioletDeep
@@ -122,8 +123,9 @@ private fun Root() {
             composable("home")     { HomeScreen(onCapture = { nav.navigate("capture") }) }
             composable("history")  { HistoryScreen() }
             composable("chef")     { ChefChatScreen() }
-            composable("settings") { SettingsScreen() }
+            composable("settings") { SettingsScreen(onReminders = { nav.navigate("reminders") }) }
             composable("capture")  { CaptureFlowScreen(onBack = { nav.popBackStack() }) }
+            composable("reminders"){ RemindersScreen(onBack = { nav.popBackStack() }) }
         }
     }
 }
