@@ -16,6 +16,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -423,10 +425,10 @@ private fun DraftingBody(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
         )
-        androidx.compose.foundation.lazy.LazyRow(
+        LazyRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            androidx.compose.foundation.lazy.itemsIndexed(uris) { idx, u ->
+            itemsIndexed(uris) { idx, u ->
                 Box {
                     AsyncImage(
                         model = u,
