@@ -21,7 +21,14 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
-private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
+private val json = Json {
+    ignoreUnknownKeys = true
+    prettyPrint = false
+    isLenient = true            // single-quoted keys, unquoted numbers/bools
+    coerceInputValues = true     // null → default
+    allowSpecialFloatingPointValues = true
+    allowTrailingComma = true
+}
 
 private const val SYSTEM_PROMPT = """Ты — еда-эксперт NomNom. По фото оцениваешь блюдо.
 Если фото несколько — это разные ракурсы ОДНОГО блюда (помогает оценить объём).
@@ -145,6 +152,21 @@ class VisionAnalyzer(
 
     private fun parseResult(raw: String): AnalysisResult {
         val cleaned = extractJson(raw)
+        return try {
+            parseStrict(cleaned)
+        } catch (_: Throwable) {
+            // JSON битый — пробуем чинить (literal \n внутри строк, неэкранированные кавычки).
+            val patched = patchJson(cleaned)
+            try {
+                parseStrict(patched)
+            } catch (_: Throwable) {
+                // Окончательный fallback — выдернуть поля regex'ом.
+                parseRegex(cleaned)
+            }
+        }
+    }
+
+    private fun parseStrict(cleaned: String): AnalysisResult {
         val obj = json.parseToJsonElement(cleaned).jsonObject
         val components = obj["components"]?.jsonArray?.mapNotNull { el ->
             val o = el.jsonObject
@@ -184,6 +206,42 @@ class VisionAnalyzer(
     }
 
     private fun JsonObject.get(key: String) = this[key]
+
+    /**
+     * Заменить буквальные \n / \r внутри значений строк на пробел.
+     * Грубо, но спасает когда модель в description вставляет реальный перевод строки.
+     */
+    private fun patchJson(s: String): String {
+        val sb = StringBuilder(s.length)
+        var inString = false
+        var prev = '\u0000'
+        for (c in s) {
+            when {
+                c == '"' && prev != '\\' -> { inString = !inString; sb.append(c) }
+                inString && (c == '\n' || c == '\r') -> sb.append(' ')
+                else -> sb.append(c)
+            }
+            prev = c
+        }
+        return sb.toString()
+    }
+
+    private fun parseRegex(raw: String): AnalysisResult {
+        fun s(key: String): String? = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"").find(raw)?.groupValues?.get(1)
+        fun i(key: String): Int = Regex("\"$key\"\\s*:\\s*(-?\\d+)").find(raw)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return AnalysisResult(
+            dish = s("dish") ?: "блюдо",
+            kcal = i("kcal"),
+            proteinG = i("protein_g"),
+            fatG = i("fat_g"),
+            carbsG = i("carbs_g"),
+            comment = s("comment") ?: "",
+            confidence = s("confidence") ?: "low",
+            isFood = (Regex("\"is_food\"\\s*:\\s*(true|false)").find(raw)?.groupValues?.get(1) == "true"),
+            components = emptyList(),
+            description = s("description") ?: "",
+        )
+    }
 
     /**
      * Вытащить чистый JSON-объект из ответа модели. Gemini любит обернуть в
