@@ -79,9 +79,10 @@ class Settings(private val ctx: Context) {
         data class Preset(val label: String, val baseUrl: String, val model: String)
 
         val PRESETS = listOf(
+            Preset("Pixtral Large",    DEFAULT_BASE_URL, "pixtral-large-latest"),
+            Preset("Pixtral 12B",      DEFAULT_BASE_URL, DEFAULT_MODEL),
             Preset("Gemini 2.5 Pro",   "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-pro"),
             Preset("Gemini 2.5 Flash", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
-            Preset("Mistral Pixtral",  DEFAULT_BASE_URL, DEFAULT_MODEL),
         )
 
         fun parseKeys(raw: String): List<String> =
