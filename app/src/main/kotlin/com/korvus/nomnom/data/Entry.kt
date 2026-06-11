@@ -27,4 +27,15 @@ data class AnalysisResult(
     val comment: String,
     val confidence: String,
     val isFood: Boolean = true,
+    val components: List<Component> = emptyList(),
+)
+
+@Serializable
+data class Component(
+    val name: String,
+    val grams: Int,
+    val kcal: Int,
+    val proteinG: Int = 0,
+    val fatG: Int = 0,
+    val carbsG: Int = 0,
 )

@@ -53,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -91,9 +92,10 @@ import java.util.UUID
 
 private sealed class FlowState {
     object Idle : FlowState()
-    data class Loading(val uri: Uri) : FlowState()
-    data class Ready(val uri: Uri, val result: AnalysisResult) : FlowState()
-    data class Error(val uri: Uri, val msg: String) : FlowState()
+    data class Drafting(val uris: List<Uri>) : FlowState()
+    data class Loading(val uris: List<Uri>) : FlowState()
+    data class Ready(val uris: List<Uri>, val result: AnalysisResult) : FlowState()
+    data class Error(val uris: List<Uri>, val msg: String) : FlowState()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,13 +111,23 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
     var state by remember { mutableStateOf<FlowState>(FlowState.Idle) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    fun runAnalyze(uri: Uri) {
-        state = FlowState.Loading(uri)
+    fun addUri(uri: Uri) {
+        state = when (val s = state) {
+            is FlowState.Drafting -> FlowState.Drafting(s.uris + uri)
+            else -> FlowState.Drafting(listOf(uri))
+        }
+    }
+
+    fun runAnalyze(uris: List<Uri>) {
+        state = FlowState.Loading(uris)
         app.appScope.launch {
             try {
-                val bytes = withContext(Dispatchers.IO) {
-                    ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                } ?: throw IllegalStateException("не удалось прочитать фото")
+                val imgs = withContext(Dispatchers.IO) {
+                    uris.mapNotNull { u ->
+                        ctx.contentResolver.openInputStream(u)?.use { it.readBytes() }
+                    }
+                }
+                if (imgs.isEmpty()) throw IllegalStateException("не удалось прочитать фото")
                 if (baseUrl.isBlank() || model.isBlank()) {
                     throw IllegalStateException("В настройках не задан Base URL или модель")
                 }
@@ -123,21 +135,21 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                 val result = VisionAnalyzer(
                     baseUrl, model, apiKeys, startIdx,
                     onAdvance = { app.settings.advanceRotation() },
-                ).analyze(bytes)
-                state = FlowState.Ready(uri, result)
+                ).analyze(imgs)
+                state = FlowState.Ready(uris, result)
             } catch (t: Throwable) {
-                state = FlowState.Error(uri, t.message ?: t.toString())
+                state = FlowState.Error(uris, t.message ?: t.toString())
             }
         }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri -> if (uri != null) runAnalyze(uri) }
+    ) { uri -> if (uri != null) addUri(uri) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
-    ) { ok -> if (ok && cameraUri != null) runAnalyze(cameraUri!!) }
+    ) { ok -> if (ok && cameraUri != null) addUri(cameraUri!!) }
 
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -168,6 +180,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                     Text(
                         when (state) {
                             FlowState.Idle -> "Новое блюдо"
+                            is FlowState.Drafting -> "Ракурсы (${(state as FlowState.Drafting).uris.size})"
                             is FlowState.Loading -> "Сканирую…"
                             is FlowState.Ready -> "Результаты"
                             is FlowState.Error -> "Ошибка"
@@ -214,23 +227,42 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                     )
                 }
             )
-            is FlowState.Loading -> LoadingBody(padding, s.uri)
+            is FlowState.Drafting -> DraftingBody(
+                padding = padding,
+                uris = s.uris,
+                onAddCamera = ::startCamera,
+                onAddGallery = {
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onRemove = { idx ->
+                    val left = s.uris.toMutableList().also { it.removeAt(idx) }
+                    state = if (left.isEmpty()) FlowState.Idle else FlowState.Drafting(left)
+                },
+                onAnalyze = { runAnalyze(s.uris) },
+            )
+            is FlowState.Loading -> LoadingBody(padding, s.uris.first())
             is FlowState.Ready -> ResultBody(
                 padding = padding,
-                uri = s.uri,
+                uri = s.uris.first(),
                 result = s.result,
-                onSave = { meal ->
+                onSave = { meal, edited ->
                     app.appScope.launch {
-                        val img = saveImage(ctx, s.uri)
+                        val img = saveImage(ctx, s.uris.first())
+                        val totalK = edited.sumOf { it.kcal }
+                        val totalP = edited.sumOf { it.proteinG }
+                        val totalF = edited.sumOf { it.fatG }
+                        val totalC = edited.sumOf { it.carbsG }
                         app.dayLog.add(
                             FoodEntry(
                                 id = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
                                 dish = s.result.dish,
-                                kcal = s.result.kcal,
-                                proteinG = s.result.proteinG,
-                                fatG = s.result.fatG,
-                                carbsG = s.result.carbsG,
+                                kcal = if (totalK > 0) totalK else s.result.kcal,
+                                proteinG = if (totalP > 0) totalP else s.result.proteinG,
+                                fatG = if (totalF > 0) totalF else s.result.fatG,
+                                carbsG = if (totalC > 0) totalC else s.result.carbsG,
                                 comment = s.result.comment,
                                 confidence = s.result.confidence,
                                 imagePath = img,
@@ -286,6 +318,12 @@ private fun IdleBody(
             fontSize = 14.sp,
             lineHeight = 20.sp,
         )
+        TipCard(
+            "🥄  Положи ложку или монету рядом — модель оценит размер порции в 2× точнее.",
+        )
+        TipCard(
+            "📐  После первого фото можно добавить ещё 1-2 ракурса (сбоку) — поможет увидеть объём.",
+        )
         Spacer(Modifier.height(4.dp))
         ActionTile(
             icon = Icons.Outlined.PhotoCamera,
@@ -300,6 +338,24 @@ private fun IdleBody(
             subtitle = "Выбрать готовое",
             primary = false,
             onClick = onGallery,
+        )
+    }
+}
+
+@Composable
+private fun TipCard(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(VioletPale)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text,
+            color = VioletDeep,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
         )
     }
 }
@@ -337,6 +393,113 @@ private fun ActionTile(
                 Text(subtitle, color = subtle, fontSize = 12.sp)
             }
         }
+    }
+}
+
+@Composable
+private fun DraftingBody(
+    padding: androidx.compose.foundation.layout.PaddingValues,
+    uris: List<Uri>,
+    onAddCamera: () -> Unit,
+    onAddGallery: () -> Unit,
+    onRemove: (Int) -> Unit,
+    onAnalyze: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(
+            "Добавь ракурсы",
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Black,
+            fontSize = 22.sp,
+        )
+        Text(
+            "До 3 фото = модель видит объём. Сейчас: ${uris.size}/3.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+        )
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            androidx.compose.foundation.lazy.itemsIndexed(uris) { idx, u ->
+                Box {
+                    AsyncImage(
+                        model = u,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(140.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentScale = ContentScale.Crop,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .clickable { onRemove(idx) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Outlined.Close, contentDescription = "удалить", tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+        if (uris.size < 3) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = onAddCamera,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Outlined.PhotoCamera, contentDescription = null, tint = VioletPrimary)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Камера", color = VioletPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = onAddGallery,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = VioletPrimary)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Галерея", color = VioletPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Button(
+            onClick = onAnalyze,
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = VioletPrimary,
+                contentColor = Color.White,
+            ),
+        ) {
+            Text(
+                "Анализировать (${uris.size} ${plural(uris.size, "фото", "фото", "фото")})",
+                fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+private fun plural(n: Int, one: String, few: String, many: String): String {
+    val mod10 = n % 10
+    val mod100 = n % 100
+    return when {
+        mod10 == 1 && mod100 != 11 -> one
+        mod10 in 2..4 && mod100 !in 12..14 -> few
+        else -> many
     }
 }
 
@@ -383,10 +546,19 @@ private fun ResultBody(
     padding: androidx.compose.foundation.layout.PaddingValues,
     uri: Uri,
     result: AnalysisResult,
-    onSave: (String) -> Unit,
+    onSave: (String, List<com.korvus.nomnom.data.Component>) -> Unit,
     onRetry: () -> Unit,
 ) {
     var selectedMeal by remember { mutableStateOf(currentMeal()) }
+    val components = remember(result) {
+        mutableStateListOf<com.korvus.nomnom.data.Component>().also { it.addAll(result.components) }
+    }
+    val originals = remember(result) { result.components }
+    val totalK = components.sumOf { it.kcal }
+    val totalP = components.sumOf { it.proteinG }
+    val totalF = components.sumOf { it.fatG }
+    val totalC = components.sumOf { it.carbsG }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -405,7 +577,6 @@ private fun ResultBody(
             MealDropdown(selected = selectedMeal, onSelect = { selectedMeal = it })
         }
         Spacer(Modifier.height(14.dp))
-        // Hero: фото слева 96dp + блок справа (ккал + 3 пилюли)
         Row(verticalAlignment = Alignment.Top) {
             AsyncImage(
                 model = uri,
@@ -419,17 +590,17 @@ private fun ResultBody(
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "${result.kcal} ккал",
+                    "$totalK ккал",
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Black,
                     fontSize = 22.sp,
                 )
                 Spacer(Modifier.height(10.dp))
-                MacroLine("Белки", "${result.proteinG} г", PinkRoseBg, PinkRoseText)
+                MacroLine("Белки", "$totalP г", PinkRoseBg, PinkRoseText)
                 Spacer(Modifier.height(6.dp))
-                MacroLine("Жиры", "${result.fatG} г", PeachBg, PeachText)
+                MacroLine("Жиры", "$totalF г", PeachBg, PeachText)
                 Spacer(Modifier.height(6.dp))
-                MacroLine("Углеводы", "${result.carbsG} г", MintBg, MintText)
+                MacroLine("Углеводы", "$totalC г", MintBg, MintText)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -438,6 +609,44 @@ private fun ResultBody(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
         )
+        if (components.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "СОСТАВ — крути граммы под себя",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.4.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            components.forEachIndexed { idx, c ->
+                ComponentRow(
+                    comp = c,
+                    original = originals.getOrNull(idx),
+                    onAdjust = { newGrams ->
+                        val baseG = originals.getOrNull(idx)?.grams ?: c.grams
+                        val baseK = originals.getOrNull(idx)?.kcal ?: c.kcal
+                        val baseP = originals.getOrNull(idx)?.proteinG ?: c.proteinG
+                        val baseF = originals.getOrNull(idx)?.fatG ?: c.fatG
+                        val baseC = originals.getOrNull(idx)?.carbsG ?: c.carbsG
+                        if (baseG > 0) {
+                            val r = newGrams.toDouble() / baseG.toDouble()
+                            components[idx] = c.copy(
+                                grams = newGrams,
+                                kcal = (baseK * r).toInt(),
+                                proteinG = (baseP * r).toInt(),
+                                fatG = (baseF * r).toInt(),
+                                carbsG = (baseC * r).toInt(),
+                            )
+                        } else {
+                            components[idx] = c.copy(grams = newGrams)
+                        }
+                    },
+                    onRemove = { components.removeAt(idx) },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
         if (result.comment.isNotBlank()) {
             Spacer(Modifier.height(16.dp))
             Card(
@@ -466,7 +675,7 @@ private fun ResultBody(
         }
         Spacer(Modifier.height(24.dp))
         Button(
-            onClick = { onSave(selectedMeal) },
+            onClick = { onSave(selectedMeal, components.toList()) },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(
@@ -481,6 +690,66 @@ private fun ResultBody(
             shape = RoundedCornerShape(50),
         ) { Text("Сканировать заново", color = VioletPrimary, fontWeight = FontWeight.SemiBold) }
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun ComponentRow(
+    comp: com.korvus.nomnom.data.Component,
+    original: com.korvus.nomnom.data.Component?,
+    onAdjust: (Int) -> Unit,
+    onRemove: () -> Unit,
+) {
+    val step = when {
+        comp.grams < 30 -> 5
+        comp.grams < 100 -> 10
+        else -> 25
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                comp.name,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(2.dp))
+            val changed = original != null && original.grams != comp.grams
+            Text(
+                if (changed && original != null) "${comp.kcal} ккал · ${comp.grams}г (было ${original.grams}г)"
+                else "${comp.kcal} ккал · ${comp.grams}г",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+            )
+        }
+        AdjustButton("−") {
+            val v = (comp.grams - step).coerceAtLeast(0)
+            if (v == 0) onRemove() else onAdjust(v)
+        }
+        Spacer(Modifier.width(6.dp))
+        AdjustButton("+") { onAdjust(comp.grams + step) }
+    }
+}
+
+@Composable
+private fun AdjustButton(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(50))
+            .background(VioletPale)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = VioletDeep, fontWeight = FontWeight.Black, fontSize = 16.sp)
     }
 }
 
