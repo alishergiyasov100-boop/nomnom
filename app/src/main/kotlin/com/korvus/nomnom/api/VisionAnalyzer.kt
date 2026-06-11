@@ -152,18 +152,22 @@ class VisionAnalyzer(
 
     private fun parseResult(raw: String): AnalysisResult {
         val cleaned = extractJson(raw)
-        return try {
-            parseStrict(cleaned)
+        val (res, tag) = try {
+            parseStrict(cleaned) to "strict"
         } catch (_: Throwable) {
-            // JSON битый — пробуем чинить (literal \n внутри строк, неэкранированные кавычки).
             val patched = patchJson(cleaned)
-            try {
-                parseStrict(patched)
-            } catch (_: Throwable) {
-                // Окончательный fallback — выдернуть поля regex'ом.
-                parseRegex(cleaned)
-            }
+            try { parseStrict(patched) to "patched" }
+            catch (_: Throwable) { parseRegex(cleaned) to "regex" }
         }
+        // Если по факту вытащили нули — впихнём raw в description чтобы юзер показал.
+        return if (res.kcal == 0 && res.components.isEmpty() && res.dish == "блюдо") {
+            val dump = raw.take(600).replace("\n", " ").replace("\"", "'")
+            res.copy(
+                dish = "(не распознано)",
+                description = "[$tag] raw: $dump",
+                comment = res.comment.ifBlank { "Модель не отдала ккал. Покажи скрин разработчику." },
+            )
+        } else res
     }
 
     private fun parseStrict(cleaned: String): AnalysisResult {
@@ -228,13 +232,26 @@ class VisionAnalyzer(
 
     private fun parseRegex(raw: String): AnalysisResult {
         fun s(key: String): String? = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"").find(raw)?.groupValues?.get(1)
-        fun i(key: String): Int = Regex("\"$key\"\\s*:\\s*(-?\\d+)").find(raw)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        // поддержать int/float и string-обёрнутые числа
+        fun n(key: String): Int {
+            val rx = Regex("\"$key\"\\s*:\\s*\"?(-?\\d+(?:\\.\\d+)?)\"?")
+            return rx.find(raw)?.groupValues?.get(1)?.toDoubleOrNull()?.toInt() ?: 0
+        }
+        // Если top-level kcal отсутствует — сумма всех "kcal" внутри components
+        fun sumAll(key: String): Int {
+            val rx = Regex("\"$key\"\\s*:\\s*\"?(-?\\d+(?:\\.\\d+)?)\"?")
+            return rx.findAll(raw).sumOf { it.groupValues[1].toDoubleOrNull()?.toInt() ?: 0 }
+        }
+        val kcal = n("kcal").let { if (it > 0) it else sumAll("kcal") }
+        val p = n("protein_g").let { if (it > 0) it else sumAll("protein_g") }
+        val f = n("fat_g").let { if (it > 0) it else sumAll("fat_g") }
+        val c = n("carbs_g").let { if (it > 0) it else sumAll("carbs_g") }
         return AnalysisResult(
             dish = s("dish") ?: "блюдо",
-            kcal = i("kcal"),
-            proteinG = i("protein_g"),
-            fatG = i("fat_g"),
-            carbsG = i("carbs_g"),
+            kcal = kcal,
+            proteinG = p,
+            fatG = f,
+            carbsG = c,
             comment = s("comment") ?: "",
             confidence = s("confidence") ?: "low",
             isFood = (Regex("\"is_food\"\\s*:\\s*(true|false)").find(raw)?.groupValues?.get(1) == "true"),
