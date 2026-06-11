@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -100,10 +103,10 @@ fun SettingsScreen() {
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                androidx.compose.foundation.lazy.LazyRow(
+                LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    androidx.compose.foundation.lazy.items(Settings.PRESETS) { p ->
+                    items(Settings.PRESETS) { p ->
                         PresetChip(
                             label = p.label,
                             active = baseUrl.trim() == p.baseUrl && model.trim() == p.model,
@@ -191,7 +194,7 @@ private fun SectionCard(title: String, hint: String, content: @Composable () -> 
 private fun PresetChip(label: String, active: Boolean, onClick: () -> Unit) {
     val bg = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.background
     val fg = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
-    androidx.compose.foundation.layout.Box(
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(bg)
