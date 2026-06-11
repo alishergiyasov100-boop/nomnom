@@ -144,9 +144,7 @@ class VisionAnalyzer(
         }
 
     private fun parseResult(raw: String): AnalysisResult {
-        val cleaned = raw.trim()
-            .removePrefix("```json").removePrefix("```")
-            .removeSuffix("```").trim()
+        val cleaned = extractJson(raw)
         val obj = json.parseToJsonElement(cleaned).jsonObject
         val components = obj["components"]?.jsonArray?.mapNotNull { el ->
             val o = el.jsonObject
@@ -186,4 +184,19 @@ class VisionAnalyzer(
     }
 
     private fun JsonObject.get(key: String) = this[key]
+
+    /**
+     * Вытащить чистый JSON-объект из ответа модели. Gemini любит обернуть в
+     * ```json ... ``` или добавить «Here is the analysis:» перед {.
+     */
+    private fun extractJson(raw: String): String {
+        val trimmed = raw.trim()
+            .removePrefix("```json").removePrefix("```JSON").removePrefix("```")
+            .removeSuffix("```").trim()
+        // Найти первую { и последнюю } — отбросить всё что вокруг.
+        val start = trimmed.indexOf('{')
+        val end = trimmed.lastIndexOf('}')
+        return if (start >= 0 && end > start) trimmed.substring(start, end + 1)
+        else trimmed
+    }
 }
