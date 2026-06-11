@@ -1,5 +1,8 @@
 package com.korvus.nomnom.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -90,6 +94,26 @@ fun SettingsScreen() {
                 title = "Vision API",
                 hint = "Куда отправлять фото блюд для оценки калорий. Если несколько ключей — впиши по одному в строку, NomNom будет крутить их по кругу и переключаться при лимите (429)."
             ) {
+                Text(
+                    "БЫСТРЫЙ ВЫБОР",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    androidx.compose.foundation.lazy.items(Settings.PRESETS) { p ->
+                        PresetChip(
+                            label = p.label,
+                            active = baseUrl.trim() == p.baseUrl && model.trim() == p.model,
+                            onClick = {
+                                baseUrl = p.baseUrl
+                                model = p.model
+                            },
+                        )
+                    }
+                }
                 FieldOutlined("Base URL", baseUrl, Settings.DEFAULT_BASE_URL) { baseUrl = it }
                 FieldOutlined("Модель", model, Settings.DEFAULT_MODEL) { model = it }
                 FieldMultiline("API ключи (по одному в строку)", apiKey, "sk-...") { apiKey = it }
@@ -160,6 +184,26 @@ private fun SectionCard(title: String, hint: String, content: @Composable () -> 
             Spacer(Modifier.height(2.dp))
             content()
         }
+    }
+}
+
+@Composable
+private fun PresetChip(label: String, active: Boolean, onClick: () -> Unit) {
+    val bg = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.background
+    val fg = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(bg)
+            .border(
+                width = 1.dp,
+                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(50),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(label, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

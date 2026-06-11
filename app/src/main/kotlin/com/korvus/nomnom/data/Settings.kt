@@ -76,6 +76,14 @@ class Settings(private val ctx: Context) {
         const val DEFAULT_MODEL = "pixtral-12b-2409"
         const val DEFAULT_API_KEY = "J52ankEgDpvYTlmDXLnDTkEPUuUNd9PC"
 
+        data class Preset(val label: String, val baseUrl: String, val model: String)
+
+        val PRESETS = listOf(
+            Preset("Gemini 2.5 Pro",   "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-pro"),
+            Preset("Gemini 2.5 Flash", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.5-flash"),
+            Preset("Mistral Pixtral",  DEFAULT_BASE_URL, DEFAULT_MODEL),
+        )
+
         fun parseKeys(raw: String): List<String> =
             raw.split('\n', ',').map { it.trim() }.filter { it.isNotEmpty() }
     }
