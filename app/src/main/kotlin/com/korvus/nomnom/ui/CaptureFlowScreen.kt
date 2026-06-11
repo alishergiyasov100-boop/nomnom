@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -120,7 +121,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
         }
     }
 
-    fun runAnalyze(uris: List<Uri>) {
+    fun runAnalyze(uris: List<Uri>, hint: String = "") {
         state = FlowState.Loading(uris)
         app.appScope.launch {
             try {
@@ -137,7 +138,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                 val result = VisionAnalyzer(
                     baseUrl, model, apiKeys, startIdx,
                     onAdvance = { app.settings.advanceRotation() },
-                ).analyze(imgs)
+                ).analyze(imgs, userHint = hint)
                 state = FlowState.Ready(uris, result)
             } catch (t: Throwable) {
                 state = FlowState.Error(uris, t.message ?: t.toString())
@@ -249,6 +250,7 @@ fun CaptureFlowScreen(onBack: () -> Unit) {
                 padding = padding,
                 uri = s.uris.first(),
                 result = s.result,
+                onReanalyze = { hint -> runAnalyze(s.uris, hint) },
                 onSave = { meal, edited ->
                     app.appScope.launch {
                         val img = saveImage(ctx, s.uris.first())
@@ -548,10 +550,13 @@ private fun ResultBody(
     padding: androidx.compose.foundation.layout.PaddingValues,
     uri: Uri,
     result: AnalysisResult,
+    onReanalyze: (String) -> Unit,
     onSave: (String, List<com.korvus.nomnom.data.Component>) -> Unit,
     onRetry: () -> Unit,
 ) {
     var selectedMeal by remember { mutableStateOf(currentMeal()) }
+    var hintEditing by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf("") }
     val components = remember(result) {
         mutableStateListOf<com.korvus.nomnom.data.Component>().also { it.addAll(result.components) }
     }
@@ -608,9 +613,63 @@ private fun ResultBody(
         Spacer(Modifier.height(10.dp))
         Text(
             "Это: ${result.dish}",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
         )
+        if (result.description.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "👁 ВИЖУ: ${result.description}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        if (!hintEditing) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(VioletPale)
+                    .clickable { hintEditing = true }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    "🤔  Не то блюдо?",
+                    color = VioletDeep,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        } else {
+            OutlinedTextField(
+                value = hint,
+                onValueChange = { hint = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Например: «это хлеб с говядиной»", fontSize = 13.sp) },
+                shape = RoundedCornerShape(14.dp),
+                maxLines = 3,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { hintEditing = false; hint = "" },
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) { Text("Отмена", color = VioletPrimary, fontSize = 13.sp) }
+                Button(
+                    onClick = { if (hint.isNotBlank()) onReanalyze(hint.trim()) },
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = VioletPrimary,
+                        contentColor = Color.White,
+                    ),
+                    enabled = hint.isNotBlank(),
+                ) { Text("Переанализ", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            }
+        }
         if (components.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             Text(

@@ -28,6 +28,7 @@ data class AnalysisResult(
     val confidence: String,
     val isFood: Boolean = true,
     val components: List<Component> = emptyList(),
+    val description: String = "",
 )
 
 @Serializable

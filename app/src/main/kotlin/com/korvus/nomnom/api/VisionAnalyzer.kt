@@ -26,30 +26,39 @@ private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 private const val SYSTEM_PROMPT = """Ты — еда-эксперт NomNom. По фото оцениваешь блюдо.
 Если фото несколько — это разные ракурсы ОДНОГО блюда (помогает оценить объём).
 
-Разложи блюдо на основные компоненты (например: рис, масло, мясо, соус, овощи).
+ОЧЕНЬ ВАЖНО — сначала ОПИСАНИЕ, потом классификация:
+1. Сначала внимательно опиши форму, цвет, текстуру каждого элемента (поле "description").
+2. Только потом по ОПИСАНИЮ определи блюдо (поле "dish"). Не угадывай по первому впечатлению.
+3. Если видишь хлеб/булку с мясом сверху — это бутерброд/сэндвич/хычин/чебурек, НЕ эклер. Эклер — это маленькое продолговатое заварное пирожное с кремом и шоколадной глазурью.
+4. Если сомневаешься — ставь confidence='low' и выбирай более общее название ("выпечка с начинкой") вместо узкого ("эклер").
+
+Разложи блюдо на основные компоненты (например: хлеб, мясо, сыр, соус, овощи).
 Для каждого компонента оцени массу в граммах. Это критично — общие ккал суммируются из компонентов.
 Если есть скрытое масло/сахар/майонез — отдельным компонентом.
 
 Если в кадре есть предмет для масштаба (ложка ~14см, монета ~2см, рука) — используй его.
 
+Если юзер дал ПОДСКАЗКУ что это за блюдо — доверяй ей, перепроверь свою классификацию.
+
 Верни СТРОГО валидный JSON, без markdown, без ```. Поля:
 {
   "is_food": true/false,
-  "dish": "Название блюда на русском",
+  "description": "Что я вижу: тёмная буханка хлеба, сверху — куски обжаренного мяса с зеленью. Размер ~15см.",
+  "dish": "Хлеб с мясом",
   "components": [
-    {"name": "рис варёный", "grams": 180, "kcal": 234, "protein_g": 5, "fat_g": 0, "carbs_g": 51},
-    {"name": "масло сливочное", "grams": 15, "kcal": 112, "protein_g": 0, "fat_g": 12, "carbs_g": 0}
+    {"name": "хлеб ржаной", "grams": 120, "kcal": 250, "protein_g": 8, "fat_g": 2, "carbs_g": 48},
+    {"name": "говядина жареная", "grams": 80, "kcal": 200, "protein_g": 20, "fat_g": 12, "carbs_g": 0}
   ],
-  "kcal": <сумма kcal по компонентам>,
-  "protein_g": <сумма protein_g>,
-  "fat_g": <сумма fat_g>,
-  "carbs_g": <сумма carbs_g>,
+  "kcal": <сумма по компонентам>,
+  "protein_g": <сумма>,
+  "fat_g": <сумма>,
+  "carbs_g": <сумма>,
   "confidence": "high"/"medium"/"low",
-  "comment": "Аппетитный комментарий 2-3 предложения. Опиши вкус и текстуру так, чтобы захотелось съесть. Эмодзи 1-2 шт. Если калорийность зашкаливает — можешь дерзко подколоть."
+  "comment": "Аппетитный комментарий 2-3 предложения. Эмодзи 1-2. Можно дерзко подколоть за калории."
 }
 
-Если не еда — is_food=false, kcal=0, components=[], dish="не еда".
-Точность важна. Не теоретическая порция — а та что НА фото."""
+Если не еда — is_food=false, kcal=0, components=[], dish="не еда", description опиши что видишь.
+Точность важна. Считай ту порцию что НА фото."""
 
 class VisionAnalyzer(
     private val baseUrl: String,
@@ -64,7 +73,11 @@ class VisionAnalyzer(
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    suspend fun analyze(images: List<ByteArray>, mimeType: String = "image/jpeg"): AnalysisResult =
+    suspend fun analyze(
+        images: List<ByteArray>,
+        mimeType: String = "image/jpeg",
+        userHint: String = "",
+    ): AnalysisResult =
         withContext(Dispatchers.IO) {
             require(images.isNotEmpty()) { "no images" }
             val isMistral = baseUrl.contains("mistral", ignoreCase = true)
@@ -79,10 +92,13 @@ class VisionAnalyzer(
                 }
             }
 
-            val userText = if (images.size > 1)
+            val baseText = if (images.size > 1)
                 "${images.size} ракурса одного блюда. Что это? Разложи на компоненты, оцени калории."
             else
                 "Что это за блюдо? Разложи на компоненты, оцени калории."
+            val userText = if (userHint.isNotBlank())
+                "$baseText\n\nПОДСКАЗКА ОТ ЮЗЕРА (доверяй ей!): $userHint"
+            else baseText
 
             val payload = buildJsonObject {
                 put("model", model)
@@ -165,6 +181,7 @@ class VisionAnalyzer(
             confidence = obj["confidence"]?.jsonPrimitive?.content ?: "medium",
             isFood = obj["is_food"]?.jsonPrimitive?.content?.toBoolean() ?: true,
             components = effectiveComponents,
+            description = obj["description"]?.jsonPrimitive?.content ?: "",
         )
     }
 
